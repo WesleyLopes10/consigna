@@ -62,6 +62,34 @@ nav button[data-section]:active{transform:scale(.97)}
 }
 @media(prefers-reduced-motion:reduce){nav button[data-section]{transition:none;transform:none}}
 #pre-form{max-width:660px}#pre-form fieldset{min-width:0;border:0;padding:0}#pre-form legend{font-size:20px;font-weight:700;margin-bottom:16px}#pre-form label{margin-bottom:12px}#pre-form select{width:100%}.intake{display:grid;gap:12px;background:white;padding:16px;border:1px solid #dce5de;border-radius:14px;margin-bottom:16px}
+
+.customer-app main{max-width:700px}
+.customer-app h1{font-size:clamp(30px,6vw,44px);line-height:1.08}
+.customer-app #intro{margin-bottom:20px}
+#pre-form{max-width:none;padding:clamp(14px,4vw,28px);border-radius:20px}
+.pre-progress{margin:0 0 10px;font-size:14px;font-weight:700;color:#166348}
+.pre-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;list-style:none;padding:0;margin:0 0 24px}
+.pre-steps li{background:#f2f5f2;color:#52635b;border-radius:10px;padding:10px 4px;text-align:center;font-size:14px;font-weight:650}
+.pre-steps li.complete{background:#e2f3e9;color:#15563e}
+.pre-steps li[aria-current=step]{background:#166348;color:white}
+#pre-form input:not([type=radio]){background:#f7faf7;border-radius:10px;padding:10px 12px}
+#pre-count{margin:0 0 16px;font-size:14px}
+#pre-checks{display:grid;gap:14px}
+#pre-form .pre-question{background:#f6f8f6;border:1px solid #dce5de;border-radius:12px;padding:10px;margin:0}
+#pre-form .pre-question legend{font-size:16px;margin:0;padding:0 5px}
+.pre-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+#pre-form .pre-choice{position:relative;display:block;margin:0}
+.pre-choice input{position:absolute;width:1px;height:1px;min-height:0;opacity:0}
+.pre-choice span{display:grid;place-items:center;min-height:48px;padding:7px;text-align:center;background:white;color:#172622;border:2px solid #dce5de;border-radius:9px;cursor:pointer}
+.pre-choice[data-tone=good]{--choice-color:#15563e;--choice-bg:#e2f3e9}
+.pre-choice[data-tone=medium]{--choice-color:#795000;--choice-bg:#fff0d4}
+.pre-choice[data-tone=bad]{--choice-color:#932e33;--choice-bg:#ffe9e9}
+.pre-choice[data-tone=unknown]{--choice-color:#48566c;--choice-bg:#e9eef5}
+.pre-choice input:checked+span{background:var(--choice-bg);border-color:var(--choice-color);color:var(--choice-color)}
+.pre-choice input:focus-visible+span{outline:3px solid #2b9d75;outline-offset:2px}
+.pre-actions{display:flex;gap:8px;margin-top:18px}
+.pre-actions button{margin:0;width:auto;min-height:48px}
+.pre-actions .primary{flex:1}
 </style>
 <body data-profile="viewer"><header><div><strong>Consigna</strong></div><label>Perfil<select id="role"><option value="viewer">Visualizador</option><option value="master">Usuário mestre</option></select></label></header>
 <main><nav aria-label="Áreas"></nav><h1></h1><p id="intro"></p><p id="status" role="status"></p><section id="content"></section></main>
@@ -77,7 +105,8 @@ nav button[data-section]:active{transform:scale(.97)}
 <label>Vídeo<input name="video" type="file" accept="video/*"></label>
 </div><button class="primary">Cadastrar veículo</button></form></template>
 <template id="pre-template"><form id="pre-form">
-<p id="pre-progress" aria-live="polite"></p>
+<p id="pre-progress" class="pre-progress" aria-live="polite"></p>
+<ol class="pre-steps" aria-label="Etapas"><li>Seus dados</li><li>Veículo</li><li>Checklist</li></ol>
 <fieldset><legend>Dados pessoais</legend>
 <label>Nome<input name="owner" autocomplete="name" maxlength="120" required></label>
 <label>Telefone / WhatsApp<input name="phone" type="tel" autocomplete="tel" minlength="10" maxlength="22" required></label>
@@ -89,9 +118,9 @@ nav button[data-section]:active{transform:scale(.97)}
 <label>Quilometragem<input name="km" type="number" min="0" required></label>
 <label>Foto do veículo (até 8 MB)<input name="photo" type="file" accept="image/*" required></label>
 <label>Vídeo do veículo (até 25 MB)<input name="video" type="file" accept="video/*" required></label></fieldset>
-<fieldset hidden disabled><legend>Estado do veículo</legend><div id="pre-checks"></div></fieldset>
-<button id="pre-back" type="button" hidden>Voltar</button>
-<button id="pre-next" class="primary">Continuar</button></form></template>
+<fieldset hidden disabled><legend>Estado do veículo</legend><p id="pre-count" aria-live="polite"></p><div id="pre-checks"></div></fieldset>
+<div class="pre-actions"><button id="pre-back" type="button" hidden>Voltar</button>
+<button id="pre-next" class="primary">Continuar</button></div></form></template>
 <script>
 const $ = selector => document.querySelector(selector);
 const money = new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
@@ -114,6 +143,7 @@ function encode(file) {
   });
 }
 function customerForm() {
+  document.body.classList.add("customer-app");
   $('header label').remove();
   $('nav').remove();
   $('h1').textContent = 'Pré-avaliação do veículo';
@@ -128,19 +158,34 @@ function customerForm() {
     back.hidden = step === 0;
     next.textContent = step === 2 ? 'Baixar ficha para enviar' : 'Continuar';
     $('#pre-progress').textContent = 'Etapa '+(step+1)+' de 3';
+    form.querySelectorAll('.pre-steps li').forEach((item,index) => {
+      item.classList.toggle('complete',index < step);
+      if (index === step) item.setAttribute('aria-current','step');
+      else item.removeAttribute('aria-current');
+    });
     window.scrollTo(0,0);
   }
   checks.forEach(([title],index) => {
-    const label = element('label',title);
-    const select = element('select');
-    select.required = true;
-    select.name = 'check'+index;
-    select.add(new Option('Selecione',''));
-    options(index).forEach((label,value) => select.add(new Option(label,value)));
-    label.append(select);
-    $('#pre-checks').append(label);
+    const group = element('fieldset',undefined,'pre-question');
+    const choices = element('div',undefined,'pre-choices');
+    group.append(element('legend',title),choices);
+    options(index).forEach((answer,value) => {
+      const label = element('label',undefined,'pre-choice');
+      const radio = element('input');
+      Object.assign(radio,{type:'radio',required:true,name:'check'+index,value});
+      label.dataset.tone = ['good','medium','bad','unknown'][value];
+      label.append(radio,element('span',answer));
+      choices.append(label);
+    });
+    $('#pre-checks').append(group);
   });
-  back.onclick = () => { step--; display(); };
+  function updateCount() {
+    const count = form.querySelectorAll('.pre-choice input:checked').length;
+    $('#pre-count').textContent = count+' de '+checks.length+' itens respondidos';
+  }
+  $('#pre-checks').onchange = updateCount;
+  updateCount();
+  back.onclick = () => { notice(''); step--; display(); };
   form.onsubmit = async event => {
     event.preventDefault();
     if (step < 2) { step++; display(); return; }
