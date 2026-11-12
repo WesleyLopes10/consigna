@@ -415,6 +415,21 @@ function render() {
   if (page === 'register') {
     content.append($('#registration').content.cloneNode(true));
     $('#register').onsubmit = register;
+    const actions = element('div');
+    actions.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px';
+    const link = element('a','Abrir formulário de pré-avaliação');
+    Object.assign(link,{href:'?pre-avaliacao',target:'_blank',rel:'noopener'});
+    const copy = button('Copiar link',async () => {
+      try {
+        await navigator.clipboard.writeText(link.href);
+        notice('Link da pré-avaliação copiado.');
+      } catch {
+        window.prompt('Copie o link da pré-avaliação:',link.href);
+      }
+    },'');
+    const open = button(link.textContent,() => link.click());
+    actions.append(open,copy);
+    content.prepend(actions);
     return;
   }
   const list = vehicles.filter(vehicle => {
@@ -425,8 +440,6 @@ function render() {
     .sort((a,b) => (b.evaluated || b.created || 0)-(a.evaluated || a.created || 0));
   if (page === 'pending' && master()) {
     const intake = element('div',undefined,'intake');
-    const link = element('a','Abrir formulário de pré-avaliação');
-    Object.assign(link,{href:'?pre-avaliacao',target:'_blank',rel:'noopener'});
     const label = element('label','Importar ficha do cliente');
     const file = element('input');
     Object.assign(file,{type:'file',accept:'.json,application/json'});
@@ -444,15 +457,7 @@ function render() {
       }
     };
     label.append(file);
-    const copy = button('Copiar link',async () => {
-      try {
-        await navigator.clipboard.writeText(link.href);
-        notice('Link da pré-avaliação copiado.');
-      } catch {
-        window.prompt('Copie o link da pré-avaliação:',link.href);
-      }
-    });
-    intake.append(link,copy,label);
+    intake.append(label);
     content.append(intake);
   }
   const grid = element('div',undefined,'grid');
