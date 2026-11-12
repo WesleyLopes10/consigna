@@ -1,17 +1,59 @@
-<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Consigna</title>
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Consigna</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#f3f5f2;color:#172622;font:16px system-ui,sans-serif}header{background:#132b24;color:#fff;padding:18px max(5vw,20px);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}header strong{font-size:27px;letter-spacing:-1px}main{max-width:1120px;margin:auto;padding:36px 20px}nav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:28px}button,select,input{font:inherit;border-radius:9px;padding:10px;border:1px solid #cbd5ce}button{cursor:pointer;background:#fff;color:#172622}button.primary,button[aria-current=true]{background:#166348;color:#fff;border-color:#166348}h1{font-size:clamp(30px,5vw,46px);letter-spacing:-.055em;margin:0}p{line-height:1.5;color:#52635b}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:16px}.card,form,.empty{background:white;border:1px solid #dce5de;border-radius:16px;padding:18px}article h2{margin:10px 0 0;font-size:21px}.media{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:9px;background:#e7eee8;display:grid;place-items:center;color:#51665a}.price{font-size:22px;font-weight:750;color:#166348}.badge{font-size:13px;padding:4px 9px;background:#f4ead1;border-radius:20px}label{display:grid;gap:6px;font-size:14px;font-weight:600}input{width:100%;min-width:0}form button{margin-top:12px}dialog{width:min(560px,94vw);border:1px solid #dce5de;border-radius:16px;padding:20px;max-height:90vh}dialog::backdrop{background:#142b2499}#status{min-height:1.5em}a{color:#166348}video{width:100%;margin-top:12px}#search{max-width:380px;margin-bottom:16px}
+
+:root{--ink:#132b24;--green:#166348;--line:#dce5de}
+body{min-width:0}
+header{padding-block:12px;padding-top:max(12px,env(safe-area-inset-top));gap:8px}
+header label{display:flex;align-items:center;gap:8px;color:#d7e9df;font-size:13px}
+header select{max-width:100%;color:var(--ink);background:#fff}
+button,select,input{min-height:44px;font-size:16px}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid #2b9d75;outline-offset:3px}
+button:disabled{opacity:.6;cursor:wait}
+#status:empty{display:none}
+#status:not(:empty){background:#e3eee6;padding:12px;border-radius:10px}
+#search{max-width:none;background:white;padding-inline:14px}
+.card{display:flex;flex-direction:column;gap:8px;overflow-wrap:anywhere}
+.card h2,.card p{margin:0}
+.card h2{margin-top:4px}
+.card button{margin-top:auto;align-self:stretch}
+.card .badge{align-self:flex-start}
+form label{min-width:0}
+input[type=file]{background:#f5f8f5;padding:6px}
+input::file-selector-button{border:0;border-radius:6px;padding:8px;background:#e3eee6;color:var(--ink);font:inherit}
+dialog{max-height:calc(100dvh - 32px);overflow:auto;color:var(--ink)}
+dialog h2{margin-top:0;overflow-wrap:anywhere}
+dialog video{max-height:45dvh;background:var(--ink);border-radius:9px}
+@media(max-width:640px){
+  header{padding-inline:max(16px,env(safe-area-inset-left)) max(16px,env(safe-area-inset-right))}
+  header strong{font-size:24px}
+  header label{gap:5px}
+  header select{max-width:150px;padding:6px}
+  main{padding:24px max(16px,env(safe-area-inset-right)) 24px max(16px,env(safe-area-inset-left))}
+  body[data-profile=master] main{padding-bottom:calc(88px + env(safe-area-inset-bottom))}
+  nav{display:none}
+  body[data-profile=master] nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));position:fixed;inset:auto 0 0;z-index:1;margin:0;padding:8px max(12px,env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));background:white;border-top:1px solid var(--line);box-shadow:0 -6px 24px #132b2410}
+  nav button{min-width:0;min-height:48px;padding:6px;font-size:14px;font-weight:650}
+  h1{font-size:34px;line-height:1.06}
+  #intro{margin:10px 0 20px}
+  .grid{grid-template-columns:minmax(0,1fr);gap:12px}
+  .card,form{padding:14px}
+  .card .media{aspect-ratio:16/8}
+  form button{width:100%}
+  #register .grid{gap:16px}
+  dialog{width:100%;max-width:none;margin:auto 0 0;border-radius:20px 20px 0 0;padding:20px max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));max-height:calc(100dvh - max(12px,env(safe-area-inset-top)))}
+}
 </style>
-<header><div><strong>Consigna</strong></div><label>Perfil<select id="role"><option value="viewer">Visualizador</option><option value="master">Usuário mestre</option></select></label></header>
+<body data-profile="viewer"><header><div><strong>Consigna</strong></div><label>Perfil<select id="role"><option value="viewer">Visualizador</option><option value="master">Usuário mestre</option></select></label></header>
 <main><nav aria-label="Áreas"></nav><h1></h1><p id="intro"></p><p id="status" role="status"></p><section id="content"></section></main>
-<dialog><div id="detail"></div><form method="dialog" style="padding:0;border:0"><button>Fechar</button></form></dialog>
+<dialog aria-label="Detalhes do veículo"><div id="detail"></div><form method="dialog" style="padding:0;border:0"><button>Fechar</button></form></dialog>
 <template id="registration"><form id="register"><div class="grid">
-<label>Nome do proprietário<input name="owner" required maxlength="120"></label>
-<label>WhatsApp<input name="phone" type="tel" required maxlength="22" placeholder="(65) 99999-0000"></label>
+<label>Nome do proprietário<input name="owner" autocomplete="name" required maxlength="120"></label>
+<label>WhatsApp<input name="phone" type="tel" autocomplete="tel" required maxlength="22" placeholder="(65) 99999-0000"></label>
 <label>Marca e modelo<input name="model" required maxlength="100" placeholder="Chevrolet Onix Plus"></label>
 <label>Versão<input name="trim" maxlength="100" placeholder="LTZ Turbo"></label>
-<label>Ano-modelo<input name="year" type="number" min="1886" max="2100" required></label>
-<label>Quilometragem<input name="km" type="number" min="0" required></label>
+<label>Ano-modelo<input name="year" type="number" inputmode="numeric" min="1886" max="2100" required></label>
+<label>Quilometragem<input name="km" type="number" inputmode="numeric" min="0" required></label>
 <label>Foto<input name="photo" type="file" accept="image/*"></label>
 <label>Vídeo<input name="video" type="file" accept="video/*"></label>
 </div><button class="primary">Cadastrar veículo</button></form></template>
@@ -99,6 +141,7 @@ function details(vehicle) {
   if (vehicle.video) {
     const video = element('video');
     video.controls = true;
+    video.playsInline = true;
     video.preload = 'metadata';
     video.src = media(vehicle.video,dialogUrls);
     container.append(video);
@@ -107,7 +150,7 @@ function details(vehicle) {
     const form = element('form');
     const label = element('label','Valor da avaliação em reais');
     const input = element('input');
-    Object.assign(input,{type:'number',min:'0.01',step:'0.01',required:true});
+    Object.assign(input,{type:'number',min:'0.01',step:'0.01',inputMode:'decimal',required:true});
     label.append(input);
     const submit = element('button','Salvar avaliação e publicar no feed','primary');
     const feedback = element('p');
@@ -152,11 +195,16 @@ const pages = {
   pending:['Pendentes de avaliação','Registre o valor para publicar o veículo no feed.'],
   register:['Cadastrar veículo','Preencha os dados do proprietário e do veículo.']
 };
+const navigationLabels = {feed:'Feed',pending:'Pendentes',register:'Cadastrar'};
 function render() {
+  document.body.dataset.profile = master() ? 'master' : 'viewer';
   release(mediaUrls);
   $('nav').replaceChildren();
-  Object.entries(pages).filter(([id]) => master() || id === 'feed').forEach(([id,[title]]) => {
-    const item = button(title,() => show(id));
+  Object.entries(pages).filter(([id]) => master() || id === 'feed').forEach(([id]) => {
+    const item = button(navigationLabels[id],() => {
+      show(id);
+      window.scrollTo(0,0);
+    });
     if (id === page) item.setAttribute('aria-current','true');
     $('nav').append(item);
   });
@@ -214,5 +262,6 @@ $('#role').onchange = () => {
   show('feed');
 };
 readVehicles().then(result => { vehicles = result; render(); }).catch(() => notice('O armazenamento local está indisponível.'));
-</script></html>
+</script></body></html>
+
 
