@@ -90,6 +90,14 @@ nav button[data-section]:active{transform:scale(.97)}
 .pre-actions{display:flex;gap:8px;margin-top:18px}
 .pre-actions button{margin:0;width:auto;min-height:48px}
 .pre-actions .primary{flex:1}
+
+.pre-diagram{display:grid;place-items:center;background:#e5f2e9;border-radius:9px;margin-bottom:8px}
+.pre-diagram svg{display:block;width:min(100%,220px);height:100px}
+.pre-diagram svg :is(path,rect,circle):last-child:not([fill]){fill:#8cc9a7;stroke:#166348}
+.pre-diagram[data-part="2"] svg rect,.pre-diagram[data-part="3"] svg rect:first-of-type,.pre-diagram[data-part="4"] svg path:nth-last-child(2){fill:#f2cc83;stroke:#795000}
+.pre-diagram[data-part="5"] svg circle:first-child{fill:#8cc9a7;stroke:#166348}
+.pre-diagram[data-part="6"] svg path:last-child{stroke:#166348;stroke-width:4}
+.pre-diagram-caption{font-size:13px;margin:0 0 10px}
 </style>
 <body data-profile="viewer"><header><div><strong>Consigna</strong></div><label>Perfil<select id="role"><option value="viewer">Visualizador</option><option value="master">Usuário mestre</option></select></label></header>
 <main><nav aria-label="Áreas"></nav><h1></h1><p id="intro"></p><p id="status" role="status"></p><section id="content"></section></main>
@@ -142,6 +150,27 @@ function encode(file) {
     reader.readAsDataURL(file);
   });
 }
+
+function inspectionDiagram(index) {
+  const side = '<path d="M29 65 39 48 69 43 87 25H137L158 45 179 51 186 65V80H25V72Z"/><path d="M72 45 90 30H134L149 45Z"/><circle cx="57" cy="80" r="13"/><circle cx="155" cy="80" r="13"/>';
+  const ends = '<path d="M42 73V54L56 28H154L168 54V73Z"/><path d="M54 51 64 33H146L156 51Z"/><path d="M48 61H72M138 61H162M53 77V84M157 77V84"/>';
+  const door = index === 1 ? '<path d="M117 49H149L139 73H117Z"/>' : '<path d="M80 49H113V73H76Z"/>';
+  const diagrams = [
+    side+door,
+    '<g transform="translate(210) scale(-1 1)">'+side+'<path d="M80 49H113V73H76Z"/></g>',
+    ends+'<rect x="42" y="67" width="126" height="10" rx="4"/>',
+    ends+'<rect x="42" y="67" width="126" height="10" rx="4"/><rect x="92" y="55" width="26" height="8" rx="2" fill="#f5faf7"/>',
+    side+'<path d="M35 53 67 47 70 57H33Z"/><path d="M87 25H137L145 32H82Z"/>',
+    '<circle cx="105" cy="55" r="36"/><circle cx="105" cy="55" r="27"/><circle cx="105" cy="55" r="15" fill="#f5faf7"/><path d="M105 44V66M94 55H116" fill="none"/>',
+    '<circle cx="76" cy="67" r="24"/><path d="M76 67H115L137 25M119 19H150"/><path d="m123 32 16 5-22 4 16 6-22 4 16 6-19 4" fill="none"/>'
+  ];
+  const illustration = element('div',undefined,'pre-diagram');
+  illustration.dataset.part = index;
+  illustration.setAttribute('aria-hidden','true');
+  illustration.innerHTML = '<svg viewBox="0 0 210 106" fill="none" stroke="#234a3a" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round">'+diagrams[index]+'</svg>';
+  return illustration;
+}
+
 function customerForm() {
   document.body.classList.add("customer-app");
   $('header label').remove();
@@ -168,7 +197,12 @@ function customerForm() {
   checks.forEach(([title],index) => {
     const group = element('fieldset',undefined,'pre-question');
     const choices = element('div',undefined,'pre-choices');
-    group.append(element('legend',title),choices);
+    group.append(element('legend',title));
+    if (index < 7) group.append(inspectionDiagram(index));
+    if (index < 2) {
+      group.append(element('p',index === 0 ? 'Vista de fora, pelo lado esquerdo do carro.' : 'Vista de fora, pelo lado direito do carro.','pre-diagram-caption'));
+    }
+    group.append(choices);
     options(index).forEach((answer,value) => {
       const label = element('label',undefined,'pre-choice');
       const radio = element('input');
