@@ -175,7 +175,16 @@ function inspectionDiagram(index) {
     ends+'<rect x="42" y="67" width="126" height="10" rx="4"/><rect x="92" y="55" width="26" height="8" rx="2" fill="#f5faf7"/>',
     side+'<path d="M35 53 67 47 70 57H33Z"/><path d="M87 25H137L145 32H82Z"/>',
     '<circle cx="105" cy="55" r="36"/><circle cx="105" cy="55" r="27"/><circle cx="105" cy="55" r="15" fill="#f5faf7"/><path d="M105 44V66M94 55H116" fill="none"/>',
-    '<circle cx="76" cy="67" r="24"/><path d="M76 67H115L137 25M119 19H150"/><path d="m123 32 16 5-22 4 16 6-22 4 16 6-19 4" fill="none"/>'
+    '<circle cx="76" cy="67" r="24"/><path d="M76 67H115L137 25M119 19H150"/><path d="m123 32 16 5-22 4 16 6-22 4 16 6-19 4" fill="none"/>',
+    '<circle cx="102" cy="54" r="36"/><circle cx="102" cy="54" r="13"/><path d="M102 25v6m-21 4 4 4m-12 15h6m2 19 4-4m17 14v-6"/><rect x="122" y="38" width="23" height="32" rx="6"/>',
+    '<path d="M53 51h17l13-15h44l13 15h16v29h-20l-10 9H79l-9-11H53Z"/><path d="M91 36V23h24v13M45 55v20m120-22v20"/><path d="M81 55h44v19H81Z"/>',
+    '<path d="M70 28h70l14 19v38H56V47Z"/><path d="M84 43v28m21-28v28m21-28v28M84 56h42"/><circle cx="126" cy="43" r="6"/>',
+    '<path d="M42 76V55l14-27h98l14 27v21Z"/><path d="M53 63h20m64 0h20"/><path d="M57 53 65 34h80l8 19Z"/>',
+    '<path d="M42 76V55l14-27h98l14 27v21Z"/><path d="M57 53 65 34h80l8 19Z"/><rect x="49" y="59" width="27" height="10" rx="4" fill="#f2cc83"/><rect x="134" y="59" width="27" height="10" rx="4" fill="#f2cc83"/>',
+    '<rect x="50" y="27" width="110" height="31" rx="7"/><path d="M62 37h86M62 47h86"/><path d="M78 67q-8 8 0 16m27-16q-8 8 0 16m27-16q-8 8 0 16" fill="none" stroke="#166348"/>',
+    '<path d="M56 76h98m-79 0v10m64-10v10"/><rect x="68" y="18" width="31" height="19" rx="6"/><path d="M67 68 60 43q0-7 8-7h29q7 0 10 9l8 16h29q10 0 10 10v5H67Z"/>',
+    '<path d="M39 73V55q66-56 132 0v18Z"/><circle cx="76" cy="55" r="14"/><path d="m76 55 6-7m35 7h33m-33 8h22"/><rect x="104" y="42" width="51" height="28" rx="5"/>',
+    '<path d="M49 84V48l31-23h75v59Z"/><path d="M58 49 83 32h64v17Z"/><path d="M66 63h21"/><rect x="109" y="59" width="32" height="14" rx="4"/>'
   ];
   const illustration = element('div',undefined,'pre-diagram');
   illustration.dataset.part = index;
@@ -215,7 +224,7 @@ function customerForm() {
       const group = element('fieldset',undefined,'pre-question');
       const choices = element('div',undefined,'pre-choices');
       group.append(element('legend',title));
-      if (index < 7) group.append(inspectionDiagram(index));
+      group.append(inspectionDiagram(index));
       if (index < 2) {
         group.append(element('p',index === 0 ? 'Vista de fora, pelo lado esquerdo do carro.' : 'Vista de fora, pelo lado direito do carro.','pre-diagram-caption'));
       }
