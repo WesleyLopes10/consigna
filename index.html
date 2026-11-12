@@ -1,0 +1,217 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Consigna</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f3f5f2;color:#172622;font:16px system-ui,sans-serif}header{background:#132b24;color:#fff;padding:18px max(5vw,20px);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}header strong{font-size:27px;letter-spacing:-1px}header small{color:#b7d5c7;margin-left:12px}main{max-width:1120px;margin:auto;padding:36px 20px}nav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:28px}button,select,input{font:inherit;border-radius:9px;padding:10px;border:1px solid #cbd5ce}button{cursor:pointer;background:#fff;color:#172622}button.primary,button[aria-current=true]{background:#166348;color:#fff;border-color:#166348}h1{font-size:clamp(30px,5vw,46px);letter-spacing:-.055em;margin:0}p{line-height:1.5;color:#52635b}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:16px}.card,form,.empty{background:white;border:1px solid #dce5de;border-radius:16px;padding:18px}article h2{margin:10px 0 0;font-size:21px}.media{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:9px;background:#e7eee8;display:grid;place-items:center;color:#51665a}.price{font-size:22px;font-weight:750;color:#166348}.badge{font-size:13px;padding:4px 9px;background:#f4ead1;border-radius:20px}label{display:grid;gap:6px;font-size:14px;font-weight:600}input{width:100%;min-width:0}form button{margin-top:12px}dialog{width:min(560px,94vw);border:1px solid #dce5de;border-radius:16px;padding:20px;max-height:90vh}dialog::backdrop{background:#142b2499}#status{min-height:1.5em}a{color:#166348}video{width:100%;margin-top:12px}#search{max-width:380px;margin-bottom:16px}
+</style>
+<header><div><strong>Consigna</strong><small>Protótipo</small></div><label>Perfil de demonstração<select id="role"><option value="master">Usuário mestre</option><option value="viewer">Visualizador</option></select></label></header>
+<main><nav aria-label="Áreas"></nav><h1></h1><p id="intro"></p><p id="status" role="status"></p><section id="content"></section></main>
+<dialog><div id="detail"></div><form method="dialog" style="padding:0;border:0"><button>Fechar</button></form></dialog>
+<template id="registration"><form id="register"><div class="grid">
+<label>Nome do proprietário<input name="owner" required maxlength="120"></label>
+<label>WhatsApp<input name="phone" type="tel" required maxlength="22" placeholder="(65) 99999-0000"></label>
+<label>Marca e modelo<input name="model" required maxlength="100" placeholder="Chevrolet Onix Plus"></label>
+<label>Versão<input name="trim" maxlength="100" placeholder="LTZ Turbo"></label>
+<label>Ano-modelo<input name="year" type="number" min="1886" max="2100" required></label>
+<label>Quilometragem<input name="km" type="number" min="0" required></label>
+<label>Foto<input name="photo" type="file" accept="image/*"></label>
+<label>Vídeo<input name="video" type="file" accept="video/*"></label>
+</div><button class="primary">Cadastrar veículo</button></form></template>
+<script>
+const $ = selector => document.querySelector(selector);
+const money = new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
+const number = new Intl.NumberFormat('pt-BR');
+const date = new Intl.DateTimeFormat('pt-BR',{dateStyle:'medium'});
+const sample = [
+  {id:'demo-1',model:'Chevrolet Onix Plus',trim:'LTZ Turbo',year:2023,km:42100,value:74500,evaluated:Date.now()-86400000},
+  {id:'demo-2',model:'Ford EcoSport',trim:'Titanium 1.6',year:2013,km:119000,value:38900,evaluated:Date.now()-172800000},
+  {id:'demo-3',model:'Chevrolet Spin',trim:'LTZ 1.8 automática',year:2013,km:134000}
+];
+const database = new Promise((resolve,reject) => {
+  const request = indexedDB.open('consigna',1);
+  request.onupgradeneeded = () => {
+    const store = request.result.createObjectStore('vehicles',{keyPath:'id'});
+    sample.forEach(vehicle => store.add(vehicle));
+  };
+  request.onsuccess = () => resolve(request.result);
+  request.onerror = () => reject(request.error);
+});
+let vehicles = [], page = 'feed', mediaUrls = [], dialogUrls = [];
+const master = () => $('#role').value === 'master';
+function element(tag, value, className) {
+  const node = document.createElement(tag);
+  if (value !== undefined) node.textContent = value;
+  if (className) node.className = className;
+  return node;
+}
+function button(label, action, style) {
+  const node = element('button',label,style);
+  node.type = 'button';
+  node.onclick = action;
+  return node;
+}
+async function readVehicles() {
+  const db = await database;
+  return new Promise((resolve,reject) => {
+    const request = db.transaction('vehicles').objectStore('vehicles').getAll();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+async function save(vehicle) {
+  const db = await database;
+  await new Promise((resolve,reject) => {
+    const transaction = db.transaction('vehicles','readwrite');
+    transaction.oncomplete = resolve;
+    transaction.onabort = () => reject(transaction.error);
+    transaction.objectStore('vehicles').put(vehicle);
+  });
+  vehicles = await readVehicles();
+}
+function notice(message) { $('#status').textContent = message; }
+function media(blob, urls) {
+  const url = URL.createObjectURL(blob);
+  urls.push(url);
+  return url;
+}
+function release(urls) { urls.splice(0).forEach(url => URL.revokeObjectURL(url)); }
+function show(next) {
+  page = next;
+  notice('');
+  render();
+}
+function photo(vehicle, urls) {
+  if (!vehicle.photo) return element('div','Sem foto','media');
+  const image = element('img',undefined,'media');
+  image.src = media(vehicle.photo,urls);
+  image.alt = vehicle.model;
+  return image;
+}
+function description(vehicle) {
+  return [vehicle.trim,vehicle.year,number.format(vehicle.km)+' km'].filter(Boolean).join(' · ');
+}
+function details(vehicle) {
+  const container = $('#detail');
+  container.replaceChildren(element('h2',vehicle.model),element('p',description(vehicle)));
+  container.append(photo(vehicle,dialogUrls));
+  if (vehicle.evaluated) container.append(element('p',money.format(vehicle.value),'price'));
+  if (master() && vehicle.owner) {
+    container.append(element('p','Proprietário · '+vehicle.owner),element('p','WhatsApp · '+vehicle.phone));
+  }
+  if (vehicle.video) {
+    const video = element('video');
+    video.controls = true;
+    video.preload = 'metadata';
+    video.src = media(vehicle.video,dialogUrls);
+    container.append(video);
+  }
+  if (master() && !vehicle.evaluated) {
+    const form = element('form');
+    const label = element('label','Valor da avaliação em reais');
+    const input = element('input');
+    Object.assign(input,{type:'number',min:'0.01',step:'0.01',required:true});
+    label.append(input);
+    const submit = element('button','Salvar avaliação e publicar no feed','primary');
+    const feedback = element('p');
+    feedback.setAttribute('role','status');
+    form.append(label,submit,feedback);
+    form.onsubmit = async event => {
+      event.preventDefault();
+      if (!master()) return;
+      submit.disabled = true;
+      try {
+        await save({...vehicle,value:input.valueAsNumber,evaluated:Date.now()});
+        $('dialog').close();
+        show('feed');
+        notice('Avaliação publicada no feed.');
+      } catch {
+        feedback.textContent = 'Não foi possível salvar a avaliação. Tente novamente.';
+        submit.disabled = false;
+      }
+    };
+    container.append(form);
+  }
+  $('dialog').showModal();
+}
+function cards(container, list) {
+  release(mediaUrls);
+  container.replaceChildren();
+  if (!list.length) container.append(element('p','Nenhum veículo encontrado.','empty'));
+  list.forEach(vehicle => {
+    const card = element('article',undefined,'card');
+    card.append(photo(vehicle,mediaUrls),element('h2',vehicle.model),element('p',description(vehicle)));
+    if (vehicle.evaluated) {
+      card.append(element('p',money.format(vehicle.value),'price'),element('p','Avaliado em '+date.format(vehicle.evaluated)));
+    } else {
+      card.append(element('p','Aguardando avaliação','badge'));
+    }
+    card.append(button(vehicle.evaluated ? 'Ver detalhes' : 'Avaliar veículo',() => details(vehicle)));
+    container.append(card);
+  });
+}
+const pages = {
+  feed:['Feed de avaliações','Consulte os veículos avaliados para consignação.'],
+  pending:['Pendentes de avaliação','Registre o valor para publicar o veículo no feed.'],
+  register:['Cadastrar veículo','Preencha os dados do proprietário e do veículo.']
+};
+function render() {
+  release(mediaUrls);
+  $('nav').replaceChildren();
+  Object.entries(pages).filter(([id]) => master() || id === 'feed').forEach(([id,[title]]) => {
+    const item = button(title,() => show(id));
+    if (id === page) item.setAttribute('aria-current','true');
+    $('nav').append(item);
+  });
+  const [title,intro] = pages[page];
+  $('h1').textContent = title;
+  $('#intro').textContent = intro;
+  const content = $('#content');
+  content.replaceChildren();
+  if (page === 'register') {
+    content.append($('#registration').content.cloneNode(true));
+    $('#register').onsubmit = register;
+    return;
+  }
+  const list = vehicles.filter(vehicle => page === 'feed' ? vehicle.evaluated : !vehicle.evaluated)
+    .sort((a,b) => (b.evaluated || b.created || 0)-(a.evaluated || a.created || 0));
+  const grid = element('div',undefined,'grid');
+  if (page === 'feed') {
+    const search = element('input');
+    Object.assign(search,{id:'search',type:'search',placeholder:'Buscar por modelo, versão ou ano'});
+    search.setAttribute('aria-label','Buscar veículos avaliados');
+    search.oninput = () => {
+      const normalize = value => value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+      const query = normalize(search.value.trim());
+      cards(grid,list.filter(vehicle => normalize([vehicle.model,vehicle.trim,vehicle.year].join(' ')).includes(query)));
+    };
+    content.append(search);
+  }
+  content.append(grid);
+  cards(grid,list);
+}
+async function register(event) {
+  event.preventDefault();
+  if (!master()) return;
+  const form = event.currentTarget;
+  const data = Object.fromEntries(new FormData(form));
+  for (const field of ['owner','phone','model','trim']) data[field] = data[field].trim();
+  if (!data.owner || !data.model || data.phone.replace(/\D/g,'').length < 10) {
+    notice('Confira o nome, o modelo e o número de WhatsApp.');
+    return;
+  }
+  const submit = form.querySelector('button');
+  submit.disabled = true;
+  try {
+    await save({...data,id:crypto.randomUUID(),created:Date.now(),photo:data.photo.size ? data.photo : null,video:data.video.size ? data.video : null});
+    if (master()) show('pending');
+    notice('Veículo cadastrado e aguardando avaliação.');
+  } catch {
+    notice('Não foi possível salvar o cadastro. Confira o espaço disponível e tente novamente.');
+    submit.disabled = false;
+  }
+}
+$('dialog').addEventListener('close',() => release(dialogUrls));
+$('#role').onchange = () => {
+  $('dialog').close();
+  show('feed');
+};
+readVehicles().then(result => { vehicles = result; render(); }).catch(() => notice('O armazenamento local está indisponível.'));
+</script></html>
