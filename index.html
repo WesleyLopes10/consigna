@@ -98,6 +98,9 @@ nav button[data-section]:active{transform:scale(.97)}
 .pre-diagram[data-part="5"] svg circle:first-child{fill:#8cc9a7;stroke:#166348}
 .pre-diagram[data-part="6"] svg path:last-child{stroke:#166348;stroke-width:4}
 .pre-diagram-caption{font-size:13px;margin:0 0 10px}
+.pre-section{display:grid;gap:12px}
+.pre-section+.pre-section{margin-top:12px}
+.pre-section h3{margin:0;padding:10px 12px;border-radius:9px;background:#e2f3e9;color:#15563e;font-size:16px}
 </style>
 <body data-profile="viewer"><header><div><strong>Consigna</strong></div><label>Perfil<select id="role"><option value="viewer">Visualizador</option><option value="master">Usuário mestre</option></select></label></header>
 <main><nav aria-label="Áreas"></nav><h1></h1><p id="intro"></p><p id="status" role="status"></p><section id="content"></section></main>
@@ -138,9 +141,19 @@ const date = new Intl.DateTimeFormat('pt-BR',{dateStyle:'medium'});
 const checks = [
  ['Porta esquerda',250,700],['Porta direita',250,700],['Para-choque dianteiro',250,650],
  ['Para-choque traseiro',250,650],['Capô e teto',350,1000],['Pneus',400,1200],
- ['Suspensão',450,1400],['Freios',350,950],['Motor',650,2200],['Câmbio',650,2200]
+ ['Suspensão',450,1400],['Freios',350,950],['Motor',650,2200],['Câmbio',650,2200],
+ ['Para-brisa',350,1200],['Faróis',250,850],['Ar-condicionado',400,1400],
+ ['Bancos e estofamento',250,750],['Painel e comandos',300,1000],['Vidros e travas elétricas',250,800]
 ];
-const options = index => index < 5 ? ['Sem avarias','Arranhado','Amassado ou quebrado','Não sei'] : ['Ótimo','Bom','Ruim','Não sei'];
+const checkSections = [
+  ['Estrutura e exterior',[0,1,2,3,4,10,11]],
+  ['Interior e conforto',[12,13,14,15]],
+  ['Motor e câmbio',[8,9]],
+  ['Suspensão, pneus e freios',[6,5,7]]
+];
+const options = index => index === 10 ? ['Sem avarias','Riscado ou lascado','Trincado ou quebrado','Não sei'] :
+  index === 11 ? ['Funcionando','Opaco','Quebrado ou sem funcionar','Não sei'] :
+  index < 5 ? ['Sem avarias','Arranhado','Amassado ou quebrado','Não sei'] : ['Ótimo','Bom','Ruim','Não sei'];
 const fields = ['owner','phone','city','plate','model','year','km'];
 function encode(file) {
   return new Promise((resolve,reject) => {
@@ -194,24 +207,30 @@ function customerForm() {
     });
     window.scrollTo(0,0);
   }
-  checks.forEach(([title],index) => {
-    const group = element('fieldset',undefined,'pre-question');
-    const choices = element('div',undefined,'pre-choices');
-    group.append(element('legend',title));
-    if (index < 7) group.append(inspectionDiagram(index));
-    if (index < 2) {
-      group.append(element('p',index === 0 ? 'Vista de fora, pelo lado esquerdo do carro.' : 'Vista de fora, pelo lado direito do carro.','pre-diagram-caption'));
-    }
-    group.append(choices);
-    options(index).forEach((answer,value) => {
-      const label = element('label',undefined,'pre-choice');
-      const radio = element('input');
-      Object.assign(radio,{type:'radio',required:true,name:'check'+index,value});
-      label.dataset.tone = ['good','medium','bad','unknown'][value];
-      label.append(radio,element('span',answer));
-      choices.append(label);
+  checkSections.forEach(([name,indices]) => {
+    const section = element('section',undefined,'pre-section');
+    section.append(element('h3',name));
+    indices.forEach(index => {
+      const [title] = checks[index];
+      const group = element('fieldset',undefined,'pre-question');
+      const choices = element('div',undefined,'pre-choices');
+      group.append(element('legend',title));
+      if (index < 7) group.append(inspectionDiagram(index));
+      if (index < 2) {
+        group.append(element('p',index === 0 ? 'Vista de fora, pelo lado esquerdo do carro.' : 'Vista de fora, pelo lado direito do carro.','pre-diagram-caption'));
+      }
+      group.append(choices);
+      options(index).forEach((answer,value) => {
+        const label = element('label',undefined,'pre-choice');
+        const radio = element('input');
+        Object.assign(radio,{type:'radio',required:true,name:'check'+index,value});
+        label.dataset.tone = ['good','medium','bad','unknown'][value];
+        label.append(radio,element('span',answer));
+        choices.append(label);
+      });
+      section.append(group);
     });
-    $('#pre-checks').append(group);
+    $('#pre-checks').append(section);
   });
   function updateCount() {
     const count = form.querySelectorAll('.pre-choice input:checked').length;
@@ -268,7 +287,7 @@ async function importAssessment(file) {
       !/^[a-z]{3}[0-9][a-z0-9][0-9]{2}$/i.test(report.plate) ||
       !Number.isInteger(Number(report.year)) || Number(report.year)<1886 || Number(report.year)>2100 ||
       !Number.isSafeInteger(Number(report.km)) || Number(report.km)<0 ||
-      !Array.isArray(report.answers) || report.answers.length !== checks.length ||
+      !Array.isArray(report.answers) || ![10,checks.length].includes(report.answers.length) ||
       !report.answers.every(value => Number.isInteger(value) && value >= 0 && value <= 3)) throw Error('Ficha inválida');
   const id = 'pre-'+report.id;
   const vehicle = Object.fromEntries(fields.map(key => [key,report[key]]));
