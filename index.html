@@ -32,7 +32,7 @@ dialog video{max-height:45dvh;background:var(--ink);border-radius:9px}
   main{padding:24px max(16px,env(safe-area-inset-right)) 24px max(16px,env(safe-area-inset-left))}
   body[data-profile=master] main{padding-bottom:calc(88px + env(safe-area-inset-bottom))}
   nav{display:none}
-  body[data-profile=master] nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));position:fixed;inset:auto 0 0;z-index:1;margin:0;padding:8px max(12px,env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));background:white;border-top:1px solid var(--line);box-shadow:0 -6px 24px #132b2410}
+  body[data-profile=master] nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));position:fixed;inset:auto 0 0;z-index:1;margin:0;padding:8px max(12px,env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));background:white;border-top:1px solid var(--line);box-shadow:0 -6px 24px #132b2410}
   nav button{min-width:0;min-height:48px;padding:6px;font-size:14px;font-weight:650}
   h1{font-size:34px;line-height:1.06}
   #intro{margin:10px 0 20px}
@@ -172,6 +172,25 @@ function details(vehicle) {
     };
     container.append(form);
   }
+  if (master() && vehicle.evaluated) {
+    const unavailable = !vehicle.unavailable;
+    const feedback = element('p');
+    feedback.setAttribute('role','status');
+    const action = button(unavailable ? 'Marcar como indisponível' : 'Recolocar no feed',async () => {
+      if (!master()) return;
+      action.disabled = true;
+      try {
+        await save({...vehicle,unavailable});
+        $('dialog').close();
+        render();
+        notice(unavailable ? 'Veículo retirado do feed.' : 'Veículo de volta ao feed.');
+      } catch {
+        feedback.textContent = 'Não foi possível alterar a disponibilidade. Tente novamente.';
+        action.disabled = false;
+      }
+    });
+    container.append(action,feedback);
+  }
   $('dialog').showModal();
 }
 function cards(container, list) {
@@ -186,6 +205,7 @@ function cards(container, list) {
     } else {
       card.append(element('p','Aguardando avaliação','badge'));
     }
+    if (vehicle.unavailable) card.append(element('p','Indisponível','badge'));
     card.append(button(vehicle.evaluated ? 'Ver detalhes' : 'Avaliar veículo',() => details(vehicle)));
     container.append(card);
   });
@@ -193,9 +213,10 @@ function cards(container, list) {
 const pages = {
   feed:['Feed de avaliações','Consulte os veículos avaliados para consignação.'],
   pending:['Pendentes de avaliação','Registre o valor para publicar o veículo no feed.'],
+  unavailable:['Veículos indisponíveis','Consulte os veículos retirados do feed e recoloque-os quando estiverem disponíveis.'],
   register:['Cadastrar veículo','Preencha os dados do proprietário e do veículo.']
 };
-const navigationLabels = {feed:'Feed',pending:'Pendentes',register:'Cadastrar'};
+const navigationLabels = {feed:'Feed',pending:'Pendentes',unavailable:'Retirados',register:'Cadastrar'};
 function render() {
   document.body.dataset.profile = master() ? 'master' : 'viewer';
   release(mediaUrls);
@@ -218,7 +239,11 @@ function render() {
     $('#register').onsubmit = register;
     return;
   }
-  const list = vehicles.filter(vehicle => page === 'feed' ? vehicle.evaluated : !vehicle.evaluated)
+  const list = vehicles.filter(vehicle => {
+    if (page === 'pending') return !vehicle.evaluated;
+    if (page === 'unavailable') return master() && vehicle.evaluated && vehicle.unavailable;
+    return vehicle.evaluated && !vehicle.unavailable;
+  })
     .sort((a,b) => (b.evaluated || b.created || 0)-(a.evaluated || a.created || 0));
   const grid = element('div',undefined,'grid');
   if (page === 'feed') {
