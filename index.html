@@ -444,7 +444,15 @@ function render() {
       }
     };
     label.append(file);
-    intake.append(link,label);
+    const copy = button('Copiar link',async () => {
+      try {
+        await navigator.clipboard.writeText(link.href);
+        notice('Link da pré-avaliação copiado.');
+      } catch {
+        window.prompt('Copie o link da pré-avaliação:',link.href);
+      }
+    });
+    intake.append(link,copy,label);
     content.append(intake);
   }
   const grid = element('div',undefined,'grid');
