@@ -45,6 +45,22 @@ dialog video{max-height:45dvh;background:var(--ink);border-radius:9px}
 }
 .download-photo{display:grid;place-items:center;min-height:44px;padding:8px;border:1px solid #cbd5ce;border-radius:9px;text-decoration:none;font-weight:600}
 .download-photo:focus-visible{outline:3px solid #2b9d75;outline-offset:3px}
+
+nav button[data-section]{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid transparent;background:var(--tab-bg);color:var(--tab-ink);font-weight:650;transition:background-color .15s,color .15s,transform .15s}
+nav button[data-section=feed]{--tab-bg:#e2f3e9;--tab-ink:#15563e}
+nav button[data-section=pending]{--tab-bg:#fff0d4;--tab-ink:#795000}
+nav button[data-section=unavailable]{--tab-bg:#f4e9f8;--tab-ink:#693584}
+nav button[data-section=register]{--tab-bg:#e1effd;--tab-ink:#245185}
+nav button[data-section][aria-current=true]{background:var(--tab-ink);color:white}
+.nav-icon{display:grid;place-items:center;width:25px;height:25px;border-radius:7px;background:#ffffff85;color:var(--tab-ink);font:700 19px/1 system-ui,sans-serif}
+nav button[aria-current=true] .nav-icon{background:#ffffff30;color:white}
+@media(hover:hover){nav button[data-section]:hover{transform:translateY(-2px);border-color:var(--tab-ink)}}
+nav button[data-section]:active{transform:scale(.97)}
+@media(max-width:640px){
+  nav button[data-section]{flex-direction:column;gap:3px;min-height:56px;padding:4px;font-size:12px}
+  nav .nav-icon{width:23px;height:23px;font-size:17px}
+}
+@media(prefers-reduced-motion:reduce){nav button[data-section]{transition:none;transform:none}}
 </style>
 <body data-profile="viewer"><header><div><strong>Consigna</strong></div><label>Perfil<select id="role"><option value="viewer">Visualizador</option><option value="master">Usuário mestre</option></select></label></header>
 <main><nav aria-label="Áreas"></nav><h1></h1><p id="intro"></p><p id="status" role="status"></p><section id="content"></section></main>
@@ -225,6 +241,7 @@ const pages = {
   unavailable:['Veículos indisponíveis','Consulte os veículos retirados do feed e recoloque-os quando estiverem disponíveis.'],
   register:['Cadastrar veículo','Preencha os dados do proprietário e do veículo.']
 };
+const navigationIcons = {feed:'▤',pending:'◷',unavailable:'⊘',register:'＋'};
 const navigationLabels = {feed:'Feed',pending:'Pendentes',unavailable:'Retirados',register:'Cadastrar'};
 function render() {
   document.body.dataset.profile = master() ? 'master' : 'viewer';
@@ -235,6 +252,10 @@ function render() {
       show(id);
       window.scrollTo(0,0);
     });
+    item.dataset.section = id;
+    const icon = element('span',navigationIcons[id],'nav-icon');
+    icon.setAttribute('aria-hidden','true');
+    item.prepend(icon);
     if (id === page) item.setAttribute('aria-current','true');
     $('nav').append(item);
   });
