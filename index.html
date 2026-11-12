@@ -61,6 +61,7 @@ nav button[data-section]:active{transform:scale(.97)}
   nav .nav-icon{width:23px;height:23px;font-size:17px}
 }
 @media(prefers-reduced-motion:reduce){nav button[data-section]{transition:none;transform:none}}
+#pre-form{max-width:660px}#pre-form fieldset{min-width:0;border:0;padding:0}#pre-form legend{font-size:20px;font-weight:700;margin-bottom:16px}#pre-form label{margin-bottom:12px}#pre-form select{width:100%}.intake{display:grid;gap:12px;background:white;padding:16px;border:1px solid #dce5de;border-radius:14px;margin-bottom:16px}
 </style>
 <body data-profile="viewer"><header><div><strong>Consigna</strong></div><label>Perfil<select id="role"><option value="viewer">Visualizador</option><option value="master">Usuário mestre</option></select></label></header>
 <main><nav aria-label="Áreas"></nav><h1></h1><p id="intro"></p><p id="status" role="status"></p><section id="content"></section></main>
@@ -75,11 +76,157 @@ nav button[data-section]:active{transform:scale(.97)}
 <label>Foto<input name="photo" type="file" accept="image/*"></label>
 <label>Vídeo<input name="video" type="file" accept="video/*"></label>
 </div><button class="primary">Cadastrar veículo</button></form></template>
+<template id="pre-template"><form id="pre-form">
+<p id="pre-progress" aria-live="polite"></p>
+<fieldset><legend>Dados pessoais</legend>
+<label>Nome<input name="owner" autocomplete="name" maxlength="120" required></label>
+<label>Telefone / WhatsApp<input name="phone" type="tel" autocomplete="tel" minlength="10" maxlength="22" required></label>
+<label>Cidade<input name="city" autocomplete="address-level2" maxlength="100" required></label></fieldset>
+<fieldset hidden disabled><legend>Carro, foto e vídeo</legend>
+<label>Placa<input name="plate" maxlength="7" pattern="[A-Za-z]{3}[0-9][A-Za-z0-9][0-9]{2}" placeholder="ABC1D23" autocapitalize="characters" required></label>
+<label>Marca e modelo<input name="model" maxlength="100" required></label>
+<label>Ano-modelo<input name="year" type="number" min="1886" max="2100" required></label>
+<label>Quilometragem<input name="km" type="number" min="0" required></label>
+<label>Foto do veículo (até 8 MB)<input name="photo" type="file" accept="image/*" required></label>
+<label>Vídeo do veículo (até 25 MB)<input name="video" type="file" accept="video/*" required></label></fieldset>
+<fieldset hidden disabled><legend>Estado do veículo</legend><div id="pre-checks"></div></fieldset>
+<button id="pre-back" type="button" hidden>Voltar</button>
+<button id="pre-next" class="primary">Continuar</button></form></template>
 <script>
 const $ = selector => document.querySelector(selector);
 const money = new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
 const number = new Intl.NumberFormat('pt-BR');
 const date = new Intl.DateTimeFormat('pt-BR',{dateStyle:'medium'});
+
+const checks = [
+ ['Porta esquerda',250,700],['Porta direita',250,700],['Para-choque dianteiro',250,650],
+ ['Para-choque traseiro',250,650],['Capô e teto',350,1000],['Pneus',400,1200],
+ ['Suspensão',450,1400],['Freios',350,950],['Motor',650,2200],['Câmbio',650,2200]
+];
+const options = index => index < 5 ? ['Sem avarias','Arranhado','Amassado ou quebrado','Não sei'] : ['Ótimo','Bom','Ruim','Não sei'];
+const fields = ['owner','phone','city','plate','model','year','km'];
+function encode(file) {
+  return new Promise((resolve,reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve({name:file.name,data:reader.result});
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+function customerForm() {
+  $('header label').remove();
+  $('nav').remove();
+  $('h1').textContent = 'Pré-avaliação do veículo';
+  $('#intro').textContent = 'Preencha a ficha e envie o arquivo baixado à equipe de avaliação.';
+  $('#content').append($('#pre-template').content.cloneNode(true));
+  const form = $('#pre-form');
+  const steps = [...form.querySelectorAll('fieldset')];
+  let step = 0;
+  const back = $('#pre-back'), next = $('#pre-next');
+  function display() {
+    steps.forEach((section,index) => section.hidden = section.disabled = index !== step);
+    back.hidden = step === 0;
+    next.textContent = step === 2 ? 'Baixar ficha para enviar' : 'Continuar';
+    $('#pre-progress').textContent = 'Etapa '+(step+1)+' de 3';
+    window.scrollTo(0,0);
+  }
+  checks.forEach(([title],index) => {
+    const label = element('label',title);
+    const select = element('select');
+    select.required = true;
+    select.name = 'check'+index;
+    select.add(new Option('Selecione',''));
+    options(index).forEach((label,value) => select.add(new Option(label,value)));
+    label.append(select);
+    $('#pre-checks').append(label);
+  });
+  back.onclick = () => { step--; display(); };
+  form.onsubmit = async event => {
+    event.preventDefault();
+    if (step < 2) { step++; display(); return; }
+    steps.forEach(section => section.disabled = false);
+    const data = new FormData(form);
+    display();
+    const photo = data.get('photo'), video = data.get('video');
+    if (photo.size > 8*1024**2 || video.size > 25*1024**2) {
+      notice('Use uma foto de até 8 MB e um vídeo de até 25 MB.');
+      return;
+    }
+    next.disabled = back.disabled = true;
+    try {
+      const report = Object.fromEntries(fields.map(key => [key,data.get(key).trim()]));
+      Object.assign(report,{version:1,id:crypto.randomUUID(),photo:await encode(photo),video:await encode(video),
+        answers:checks.map((_,index) => Number(data.get('check'+index)))});
+      const url = URL.createObjectURL(new Blob([JSON.stringify(report)],{type:'application/json'}));
+      const link = element('a');
+      link.href = url;
+      link.download = 'consigna-pre-avaliacao.json';
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url),30000);
+      notice('Ficha pronta. Envie o arquivo baixado à equipe de avaliação.');
+    } catch {
+      notice('Não foi possível gerar a ficha. Tente novamente.');
+    } finally {
+      next.disabled = back.disabled = false;
+    }
+  };
+  display();
+}
+function decode(media,kind,limit) {
+  const match = typeof media?.data === 'string' && media.data.match(/^data:([a-z]+\/[a-z0-9.+-]+);base64,([a-z0-9+/=]+)$/i);
+  if (!match || !match[1].startsWith(kind+'/')) throw Error('Mídia inválida');
+  const bytes = Uint8Array.from(atob(match[2]),char => char.charCodeAt(0));
+  if (!bytes.length || bytes.length > limit*1024**2) throw Error('Tamanho inválido');
+  return new File([bytes],String(media.name || kind),{type:match[1]});
+}
+async function importAssessment(file) {
+  if (file.size > 46*1024**2) throw Error('Tamanho inválido');
+  const report = JSON.parse(await file.text());
+  if (!report || report.version !== 1 || !/^[a-f0-9-]{36}$/i.test(report.id) ||
+      !fields.every(key => typeof report[key] === 'string' && report[key].trim() && report[key].length <= 120) ||
+      !/^[a-z]{3}[0-9][a-z0-9][0-9]{2}$/i.test(report.plate) ||
+      !Number.isInteger(Number(report.year)) || Number(report.year)<1886 || Number(report.year)>2100 ||
+      !Number.isSafeInteger(Number(report.km)) || Number(report.km)<0 ||
+      !Array.isArray(report.answers) || report.answers.length !== checks.length ||
+      !report.answers.every(value => Number.isInteger(value) && value >= 0 && value <= 3)) throw Error('Ficha inválida');
+  const id = 'pre-'+report.id;
+  const vehicle = Object.fromEntries(fields.map(key => [key,report[key]]));
+  Object.assign(vehicle,{id,created:Date.now(),answers:report.answers,photo:decode(report.photo,'image',8),video:decode(report.video,'video',25)});
+  const db = await database;
+  await new Promise((resolve,reject) => {
+    const transaction = db.transaction('vehicles','readwrite');
+    transaction.oncomplete = resolve;
+    transaction.onabort = () => reject(transaction.error);
+    transaction.objectStore('vehicles').add(vehicle);
+  });
+  vehicles = await readVehicles();
+}
+function showAssessment(vehicle,container) {
+  container.append(element('h3','Pré-avaliação do cliente'),element('p',vehicle.city+' · Placa '+vehicle.plate));
+  const list = element('ul');
+  let total = 0;
+  vehicle.answers.forEach((answer,index) => {
+    const [name,minor,major] = checks[index];
+    const adjustment = [0,minor,major,0][answer];
+    total += adjustment;
+    list.append(element('li',name+' · '+options(index)[answer]+' · '+(answer === 3 ? 'Conferir' : money.format(adjustment))));
+  });
+  const label = element('label','Valor-base definido pela equipe');
+  const base = element('input');
+  Object.assign(base,{type:'number',min:'0',step:'0.01',inputMode:'decimal'});
+  const result = element('p','Informe o valor-base para calcular a sugestão.');
+  result.setAttribute('aria-live','polite');
+  base.oninput = () => {
+    result.textContent = base.value && base.validity.valid
+      ? 'Valor sugerido · '+money.format(Math.max(0,base.valueAsNumber-total))
+      : 'Informe o valor-base para calcular a sugestão.';
+  };
+  label.append(base);
+  container.append(list,element('p','Desconto indicativo · '+money.format(total),'price'),label,result);
+}
+
 const sample = [
   {id:'demo-1',model:'Chevrolet Onix Plus',trim:'LTZ Turbo',year:2023,km:42100,value:74500,evaluated:Date.now()-86400000},
   {id:'demo-2',model:'Ford EcoSport',trim:'Titanium 1.6',year:2013,km:119000,value:38900,evaluated:Date.now()-172800000},
@@ -164,6 +311,7 @@ function details(vehicle) {
     video.src = media(vehicle.video,dialogUrls);
     container.append(video);
   }
+  if (master() && vehicle.answers) showAssessment(vehicle,container);
   if (master() && !vehicle.evaluated) {
     const form = element('form');
     const label = element('label','Valor da avaliação em reais');
@@ -275,6 +423,30 @@ function render() {
     return vehicle.evaluated && !vehicle.unavailable;
   })
     .sort((a,b) => (b.evaluated || b.created || 0)-(a.evaluated || a.created || 0));
+  if (page === 'pending' && master()) {
+    const intake = element('div',undefined,'intake');
+    const link = element('a','Abrir formulário de pré-avaliação');
+    Object.assign(link,{href:'?pre-avaliacao',target:'_blank',rel:'noopener'});
+    const label = element('label','Importar ficha do cliente');
+    const file = element('input');
+    Object.assign(file,{type:'file',accept:'.json,application/json'});
+    file.onchange = async () => {
+      if (!master() || !file.files[0]) return;
+      file.disabled = true;
+      try {
+        await importAssessment(file.files[0]);
+        render();
+        notice('Pré-avaliação importada para Pendentes.');
+      } catch (error) {
+        notice(error?.name === 'ConstraintError' ? 'Esta ficha já foi importada.' : 'Não foi possível importar. Confira o arquivo recebido.');
+        file.value = '';
+        file.disabled = false;
+      }
+    };
+    label.append(file);
+    intake.append(link,label);
+    content.append(intake);
+  }
   const grid = element('div',undefined,'grid');
   if (page === 'feed') {
     const search = element('input');
@@ -316,7 +488,8 @@ $('#role').onchange = () => {
   $('dialog').close();
   show('feed');
 };
-readVehicles().then(result => { vehicles = result; render(); }).catch(() => notice('O armazenamento local está indisponível.'));
+if (new URLSearchParams(location.search).has("pre-avaliacao")) customerForm();
+else readVehicles().then(result => { vehicles = result; render(); }).catch(() => notice('O armazenamento local está indisponível.'));
 </script></body></html>
 
 
