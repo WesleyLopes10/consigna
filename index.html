@@ -43,6 +43,8 @@ dialog video{max-height:45dvh;background:var(--ink);border-radius:9px}
   #register .grid{gap:16px}
   dialog{width:100%;max-width:none;margin:auto 0 0;border-radius:20px 20px 0 0;padding:20px max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));max-height:calc(100dvh - max(12px,env(safe-area-inset-top)))}
 }
+.download-photo{display:grid;place-items:center;min-height:44px;padding:8px;border:1px solid #cbd5ce;border-radius:9px;text-decoration:none;font-weight:600}
+.download-photo:focus-visible{outline:3px solid #2b9d75;outline-offset:3px}
 </style>
 <body data-profile="viewer"><header><div><strong>Consigna</strong></div><label>Perfil<select id="role"><option value="viewer">Visualizador</option><option value="master">Usuário mestre</option></select></label></header>
 <main><nav aria-label="Áreas"></nav><h1></h1><p id="intro"></p><p id="status" role="status"></p><section id="content"></section></main>
@@ -204,6 +206,13 @@ function cards(container, list) {
       card.append(element('p',money.format(vehicle.value),'price'),element('p','Avaliado em '+date.format(vehicle.evaluated)));
     } else {
       card.append(element('p','Aguardando avaliação','badge'));
+    }
+    if (page === 'feed' && vehicle.photo) {
+      const download = element('a','Baixar foto','download-photo');
+      download.href = card.querySelector('img').src;
+      download.download = vehicle.photo.name || 'foto-do-veiculo';
+      download.setAttribute('aria-label','Baixar foto de '+vehicle.model);
+      card.append(download);
     }
     if (vehicle.unavailable) card.append(element('p','Indisponível','badge'));
     card.append(button(vehicle.evaluated ? 'Ver detalhes' : 'Avaliar veículo',() => details(vehicle)));
