@@ -159,16 +159,7 @@ nav button[data-section]:active{transform:scale(.97)}
 <body data-profile="viewer"><header><div><strong>Consigna</strong></div><label>Perfil<select id="role"><option value="viewer">Visualizador</option><option value="master">Usuário mestre</option></select></label></header>
 <main><nav aria-label="Áreas"></nav><h1></h1><p id="intro"></p><p id="status" role="status"></p><section id="content"></section></main>
 <dialog aria-label="Detalhes do veículo"><div id="detail"></div><form method="dialog" style="padding:0;border:0"><button>Fechar</button></form></dialog>
-<template id="registration"><form id="register"><div class="grid">
-<label>Nome do proprietário<input name="owner" autocomplete="name" required maxlength="120"></label>
-<label>WhatsApp<input name="phone" type="tel" autocomplete="tel" required maxlength="22" placeholder="(65) 99999-0000"></label>
-<label>Marca e modelo<input name="model" required maxlength="100" placeholder="Chevrolet Onix Plus"></label>
-<label>Versão<input name="trim" maxlength="100" placeholder="LTZ Turbo"></label>
-<label>Ano-modelo<input name="year" type="number" inputmode="numeric" min="1886" max="2100" required></label>
-<label>Quilometragem<input name="km" type="number" inputmode="numeric" min="0" required></label>
-<label>Foto<input name="photo" type="file" accept="image/*"></label>
-<label>Vídeo<input name="video" type="file" accept="video/*"></label>
-</div><button class="primary">Cadastrar veículo</button></form></template>
+
 <template id="pre-template"><form id="pre-form">
 <p id="pre-progress" class="pre-progress" aria-live="polite"></p>
 <ol class="pre-steps" aria-label="Etapas"><li>Seus dados</li><li>Veículo</li><li>Checklist</li></ol>
@@ -493,7 +484,7 @@ async function repairPdf(report) {
   const model = Array.from(report.model || '');
   stream += text(model.slice(0,72).join(''),36,710);
   stream += text(model.slice(72).join(''),36,695);
-  stream += text([report.year,report.plate,number.format(report.km)+' km'].filter(Boolean).join(' | '),36,676);
+  stream += text([report.code,report.year,report.plate,number.format(report.km)+' km'].filter(Boolean).join(' | '),36,676);
   rows.forEach((row,index) => {
     const y = 576-index*23;
     stream += text(row.name,36,y,10)+text(row.condition,220,y,10)
@@ -598,13 +589,28 @@ async function readVehicles() {
     request.onerror = () => reject(request.error);
   });
 }
-async function save(vehicle) {
+async function save(vehicle,finalValue) {
   const db = await database;
   await new Promise((resolve,reject) => {
     const transaction = db.transaction('vehicles','readwrite');
     transaction.oncomplete = resolve;
     transaction.onabort = () => reject(transaction.error);
-    transaction.objectStore('vehicles').put(vehicle);
+    const store = transaction.objectStore('vehicles');
+    if (finalValue === undefined) {
+      store.put(vehicle);
+      return;
+    }
+    const request = store.getAll();
+    request.onsuccess = () => {
+      const current = request.result.find(item => item.id === vehicle.id);
+      if (!current?.answers?.length || current.evaluated) {
+        transaction.abort();
+        return;
+      }
+      const last = request.result.reduce((max,item) => Math.max(max,Number(item.code?.match(/^COD(\d+)$/)?.[1] || 0)),0);
+      const code = 'COD'+String(last+1).padStart(4,'0');
+      store.put({...current,code,value:finalValue,evaluated:Date.now()});
+    };
   });
   vehicles = await readVehicles();
 }
@@ -632,7 +638,7 @@ function description(vehicle) {
   return [vehicle.trim,vehicle.year,number.format(vehicle.km)+' km'].filter(Boolean).join(' · ');
 }
 function details(vehicle) {
-  const evaluating = master() && !vehicle.evaluated;
+  const evaluating = master() && !vehicle.evaluated && Boolean(vehicle.answers?.length);
   const container = evaluating ? element('section',undefined,'evaluation-page') : $('#detail');
   if (evaluating) {
     page = 'evaluation';
@@ -645,6 +651,7 @@ function details(vehicle) {
     window.scrollTo(0,0);
   }
   container.replaceChildren(element('h2',vehicle.model));
+  if (vehicle.code) container.append(element('p',vehicle.code,'badge'));
   if (evaluating) {
     const info = element('section',undefined,'assessment-panel assessment-info');
     const list = element('ul');
@@ -675,7 +682,7 @@ function details(vehicle) {
     container.append(video);
   }
   if (master() && vehicle.answers) showAssessment(vehicle,container);
-  if (master() && !vehicle.evaluated) {
+  if (evaluating) {
     const form = element('form');
     const label = element('label','Valor da avaliação em reais');
     const input = element('input');
@@ -690,10 +697,10 @@ function details(vehicle) {
       if (!master()) return;
       submit.disabled = true;
       try {
-        await save({...vehicle,value:input.valueAsNumber,evaluated:Date.now()});
+        await save(vehicle,input.valueAsNumber);
         $('dialog').close();
         show('feed');
-        notice('Avaliação publicada no feed.');
+        notice('Avaliação '+vehicles.find(item => item.id === vehicle.id).code+' publicada no feed.');
       } catch {
         feedback.textContent = 'Não foi possível salvar a avaliação. Tente novamente.';
         submit.disabled = false;
@@ -742,8 +749,15 @@ function cards(container, list) {
       download.setAttribute('aria-label','Baixar foto de '+vehicle.model);
       card.append(download);
     }
+    if (vehicle.code) card.append(element('p',vehicle.code,'badge'));
     if (vehicle.unavailable) card.append(element('p','Indisponível','badge'));
-    card.append(button(vehicle.evaluated ? 'Ver detalhes' : 'Avaliar veículo',() => details(vehicle)));
+    if (vehicle.evaluated || vehicle.answers?.length) {
+      card.append(button(vehicle.evaluated ? 'Ver detalhes' : 'Avaliar veículo',() => details(vehicle)));
+    } else {
+      const link = element('a','Preencher pré-avaliação','download-photo');
+      link.href = '?pre-avaliacao';
+      card.append(link);
+    }
     container.append(card);
   });
 }
@@ -751,10 +765,10 @@ const pages = {
   feed:['Feed de avaliações','Consulte os veículos avaliados para consignação.'],
   pending:['Pendentes de avaliação','Registre o valor para publicar o veículo no feed.'],
   unavailable:['Veículos indisponíveis','Consulte os veículos retirados do feed e recoloque-os quando estiverem disponíveis.'],
-  register:['Cadastrar veículo','Preencha os dados do proprietário e do veículo.']
+  register:['Pré-avaliação','Abra o formulário ou copie o link para compartilhar.']
 };
 const navigationIcons = {feed:'▤',pending:'◷',unavailable:'⊘',register:'＋'};
-const navigationLabels = {feed:'Feed',pending:'Pendentes',unavailable:'Retirados',register:'Cadastrar'};
+const navigationLabels = {feed:'Feed',pending:'Pendentes',unavailable:'Retirados',register:'Pré-avaliação'};
 function render() {
   document.body.dataset.profile = master() ? 'master' : 'viewer';
   release(mediaUrls);
@@ -777,8 +791,6 @@ function render() {
   const content = $('#content');
   content.replaceChildren();
   if (page === 'register') {
-    content.append($('#registration').content.cloneNode(true));
-    $('#register').onsubmit = register;
     const actions = element('div');
     actions.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px';
     const link = element('a','Abrir formulário de pré-avaliação');
@@ -793,7 +805,7 @@ function render() {
     },'');
     link.className = 'download-photo';
     actions.append(link,copy);
-    content.prepend(actions);
+    content.append(actions);
     return;
   }
   const list = vehicles.filter(vehicle => {
@@ -827,39 +839,19 @@ function render() {
   const grid = element('div',undefined,'grid');
   if (page === 'feed') {
     const search = element('input');
-    Object.assign(search,{id:'search',type:'search',placeholder:'Buscar por modelo, versão ou ano'});
+    Object.assign(search,{id:'search',type:'search',placeholder:'Buscar por código, modelo, versão ou ano'});
     search.setAttribute('aria-label','Buscar veículos avaliados');
     search.oninput = () => {
       const normalize = value => value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
       const query = normalize(search.value.trim());
-      cards(grid,list.filter(vehicle => normalize([vehicle.model,vehicle.trim,vehicle.year].join(' ')).includes(query)));
+      cards(grid,list.filter(vehicle => normalize([vehicle.code,vehicle.model,vehicle.trim,vehicle.year].join(' ')).includes(query)));
     };
     content.append(search);
   }
   content.append(grid);
   cards(grid,list);
 }
-async function register(event) {
-  event.preventDefault();
-  if (!master()) return;
-  const form = event.currentTarget;
-  const data = Object.fromEntries(new FormData(form));
-  for (const field of ['owner','phone','model','trim']) data[field] = data[field].trim();
-  if (!data.owner || !data.model || data.phone.replace(/\D/g,'').length < 10) {
-    notice('Confira o nome, o modelo e o número de WhatsApp.');
-    return;
-  }
-  const submit = form.querySelector('button');
-  submit.disabled = true;
-  try {
-    await save({...data,id:crypto.randomUUID(),created:Date.now(),photo:data.photo.size ? data.photo : null,video:data.video.size ? data.video : null});
-    if (master()) show('pending');
-    notice('Veículo cadastrado e aguardando avaliação.');
-  } catch {
-    notice('Não foi possível salvar o cadastro. Confira o espaço disponível e tente novamente.');
-    submit.disabled = false;
-  }
-}
+
 $('dialog').addEventListener('close',() => release(dialogUrls));
 $('#role').onchange = () => {
   $('dialog').close();
