@@ -114,6 +114,16 @@ nav button[data-section]:active{transform:scale(.97)}
   #repair-report th,#repair-report td{text-align:left;padding:5px;border-bottom:1px solid #dce5de}
   #repair-report tr{break-inside:avoid}
 }
+
+.pre-slider{display:block}
+#pre-form .pre-slider input[type=range]{display:block;appearance:none;padding:0;border:0;background:transparent;min-height:44px;cursor:pointer;touch-action:pan-y}
+.pre-slider input[type=range]::-webkit-slider-runnable-track{height:10px;border-radius:10px;background:linear-gradient(90deg,#2b9766,#e3ac42,#cf5258)}
+.pre-slider input[type=range]::-moz-range-track{height:10px;border-radius:10px;background:linear-gradient(90deg,#2b9766,#e3ac42,#cf5258)}
+.pre-slider input[type=range]::-webkit-slider-thumb{appearance:none;width:26px;height:26px;margin-top:-8px;border:3px solid #166348;background:white;border-radius:50%}
+.pre-slider input[type=range]::-moz-range-thumb{width:20px;height:20px;border:3px solid #166348;background:white;border-radius:50%}
+.pre-slider-labels{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.pre-slider-labels button{margin:0;padding:5px;font-size:13px;overflow-wrap:anywhere}
+.pre-slider-labels button[aria-pressed=true]{background:#166348;color:white;border-color:#166348}
 </style>
 <body data-profile="viewer"><header><div><strong>Consigna</strong></div><label>Perfil<select id="role"><option value="viewer">Visualizador</option><option value="master">Usuário mestre</option></select></label></header>
 <main><nav aria-label="Áreas"></nav><h1></h1><p id="intro"></p><p id="status" role="status"></p><section id="content"></section></main>
@@ -295,20 +305,35 @@ function customerForm() {
         group.append(element('p',index === 0 ? 'Vista de fora, pelo lado esquerdo do carro.' : 'Vista de fora, pelo lado direito do carro.','pre-diagram-caption'));
       }
       group.append(choices);
-      options(index).slice(0,3).forEach((answer,value) => {
-        const label = element('label',undefined,'pre-choice');
-        const radio = element('input');
-        Object.assign(radio,{type:'radio',required:true,name:'check'+index,value});
-        label.dataset.tone = ['good','medium','bad','unknown'][value];
-        label.append(radio,element('span',answer));
-        choices.append(label);
+      const ratings = options(index).slice(0,3);
+      choices.classList.add('pre-slider');
+      const slider = element('input');
+      Object.assign(slider,{type:'range',min:'0',max:'2',step:'1',value:'1'});
+      slider.setAttribute('aria-label',title);
+      slider.setAttribute('aria-valuetext','Escolha uma condição');
+      const answer = element('input');
+      Object.assign(answer,{type:'hidden',name:'check'+index});
+      const labels = element('div',undefined,'pre-slider-labels');
+      function selectRating(value) {
+        slider.value = answer.value = value;
+        slider.setAttribute('aria-valuetext',ratings[value]);
+        [...labels.children].forEach((item,position) =>
+          item.setAttribute('aria-pressed',String(position === Number(value))));
+        updateCount();
+      }
+      slider.oninput = slider.onchange = () => selectRating(slider.value);
+      ratings.forEach((label,value) => {
+        const choice = button(label,() => selectRating(value));
+        choice.setAttribute('aria-pressed','false');
+        labels.append(choice);
       });
+      choices.append(slider,answer,labels);
       section.append(group);
     });
     $('#pre-checks').append(section);
   });
   function updateCount() {
-    const count = form.querySelectorAll('.pre-choice input:checked').length;
+    const count = [...form.querySelectorAll('.pre-slider input[type=hidden]')].filter(input => input.value !== '').length;
     $('#pre-count').textContent = count+' de '+checks.length+' itens respondidos';
   }
   $('#pre-checks').onchange = updateCount;
@@ -317,6 +342,12 @@ function customerForm() {
   form.onsubmit = async event => {
     event.preventDefault();
     if (step < 2) { step++; display(); return; }
+    const missing = [...form.querySelectorAll('.pre-slider input[type=hidden]')].find(input => input.value === '');
+    if (missing) {
+      notice('Escolha uma condição para cada item do checklist.');
+      missing.previousElementSibling.focus();
+      return;
+    }
     steps.forEach(section => section.disabled = false);
     const data = new FormData(form);
     display();
