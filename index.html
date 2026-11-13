@@ -101,14 +101,6 @@ nav button[data-section]:active{transform:scale(.97)}
 .pre-section{display:grid;gap:12px}
 .pre-section+.pre-section{margin-top:12px}
 .pre-section h3{margin:0;padding:10px 12px;border-radius:9px;background:#e2f3e9;color:#15563e;font-size:16px}
-
-.pre-scale{grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
-.pre-scale .pre-choice:not(:last-child) span{border-radius:4px;border-color:var(--choice-bg);background:var(--choice-bg);color:var(--choice-color)}
-.pre-scale .pre-choice:not(:last-child) input:checked+span{background:var(--choice-color);border-color:var(--choice-color);color:#fff;font-weight:800}
-.pre-scale .pre-choice:not(:last-child) input:checked+span::before{content:"";position:absolute;top:5px;left:50%;width:12px;height:3px;border-radius:3px;background:currentColor;transform:translateX(-50%)}
-.pre-scale .pre-choice:first-child span{border-radius:10px 4px 4px 10px}
-.pre-scale .pre-choice:nth-child(3) span{border-radius:4px 10px 10px 4px}
-#pre-form .pre-scale .pre-choice:last-child{grid-column:1/-1;margin-top:4px}
 </style>
 <body data-profile="viewer"><header><div><strong>Consigna</strong></div><label>Perfil<select id="role"><option value="viewer">Visualizador</option><option value="master">Usuário mestre</option></select></label></header>
 <main><nav aria-label="Áreas"></nav><h1></h1><p id="intro"></p><p id="status" role="status"></p><section id="content"></section></main>
@@ -237,9 +229,7 @@ function customerForm() {
         group.append(element('p',index === 0 ? 'Vista de fora, pelo lado esquerdo do carro.' : 'Vista de fora, pelo lado direito do carro.','pre-diagram-caption'));
       }
       group.append(choices);
-      const ratings = options(index);
-      if (ratings[0] === 'Ótimo') choices.classList.add('pre-scale');
-      ratings.forEach((answer,value) => {
+      options(index).forEach((answer,value) => {
         const label = element('label',undefined,'pre-choice');
         const radio = element('input');
         Object.assign(radio,{type:'radio',required:true,name:'check'+index,value});
@@ -544,8 +534,8 @@ function render() {
         window.prompt('Copie o link da pré-avaliação:',link.href);
       }
     },'');
-    const open = button(link.textContent,() => link.click());
-    actions.append(open,copy);
+    link.className = 'download-photo';
+    actions.append(link,copy);
     content.prepend(actions);
     return;
   }
