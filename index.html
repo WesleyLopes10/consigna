@@ -242,7 +242,7 @@ function customerForm() {
         group.append(element('p',index === 0 ? 'Vista de fora, pelo lado esquerdo do carro.' : 'Vista de fora, pelo lado direito do carro.','pre-diagram-caption'));
       }
       group.append(choices);
-      options(index).forEach((answer,value) => {
+      options(index).slice(0,3).forEach((answer,value) => {
         const label = element('label',undefined,'pre-choice');
         const radio = element('input');
         Object.assign(radio,{type:'radio',required:true,name:'check'+index,value});
