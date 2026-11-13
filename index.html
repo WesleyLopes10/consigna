@@ -141,7 +141,7 @@ nav button[data-section]:active{transform:scale(.97)}
 <label>Modelo<input name="model" list="pre-models" maxlength="79" placeholder="Digite ou escolha o modelo" required></label><datalist id="pre-models"></datalist>
 <label>Ano-modelo<input name="year" type="number" min="1886" max="2100" required></label>
 <label>Quilometragem<input name="km" type="number" min="0" required></label>
-<label>Foto do veículo (até 8 MB)<input name="photo" type="file" accept="image/*" required></label>
+<label>Fotos do veículo (até 5, 8 MB cada)<input name="photo" type="file" accept="image/*" multiple required></label>
 <label>Vídeo do veículo (até 25 MB)<input name="video" type="file" accept="video/*" required></label></fieldset>
 <fieldset hidden disabled><legend>Estado do veículo</legend><p id="pre-count" aria-live="polite"></p><div id="pre-checks"></div></fieldset>
 <div class="pre-actions"><button id="pre-back" type="button" hidden>Voltar</button>
@@ -263,7 +263,7 @@ function customerForm() {
   $('header label').remove();
   $('nav').remove();
   $('h1').textContent = 'Pré-avaliação do veículo';
-  $('#intro').textContent = 'Preencha a ficha para baixar a estimativa de reparos em PDF.';
+  $('#intro').textContent = 'Preencha a ficha para gerar a estimativa de reparos.';
   $('#content').append($('#pre-template').content.cloneNode(true));
   const form = $('#pre-form');
   configureCustomerFields(form);
@@ -273,7 +273,7 @@ function customerForm() {
   function display() {
     steps.forEach((section,index) => section.hidden = section.disabled = index !== step);
     back.hidden = step === 0;
-    next.textContent = step === 2 ? 'Baixar PDF de reparos' : 'Continuar';
+    next.textContent = step === 2 ? 'Enviar pré-avaliação' : 'Continuar';
     $('#pre-progress').textContent = 'Etapa '+(step+1)+' de 3';
     form.querySelectorAll('.pre-steps li').forEach((item,index) => {
       item.classList.toggle('complete',index < step);
@@ -320,28 +320,35 @@ function customerForm() {
     steps.forEach(section => section.disabled = false);
     const data = new FormData(form);
     display();
-    const photo = data.get('photo'), video = data.get('video');
-    if (photo.size > 8*1024**2 || video.size > 25*1024**2) {
-      notice('Use uma foto de até 8 MB e um vídeo de até 25 MB.');
+    const photos = data.getAll('photo'), video = data.get('video');
+    if (photos.length > 5 || photos.some(photo => photo.size > 8*1024**2) || video.size > 25*1024**2) {
+      notice('Use até cinco fotos de até 8 MB cada e um vídeo de até 25 MB.');
       return;
     }
     next.disabled = back.disabled = true;
+    notice('');
+    const screen = element('section',undefined,'empty');
+    screen.setAttribute('role','status');
+    screen.setAttribute('aria-busy','true');
+    screen.append(element('h2','Preparando sua estimativa…'),element('progress'));
+    form.hidden = true;
+    $('#content').append(screen);
+    window.scrollTo(0,0);
     try {
       const report = Object.fromEntries(fields.map(key => [key,data.get(key).trim()]));
       report.model = data.get('brand').trim()+' '+report.model;
-      Object.assign(report,{version:1,id:crypto.randomUUID(),photo:await encode(photo),video:await encode(video),
+      Object.assign(report,{id:crypto.randomUUID(),created:Date.now(),photo:photos[0],photos,video,
         answers:checks.map((_,index) => Number(data.get('check'+index)))});
-      repairReport(report);
-      notice('PDF gerado. Se a equipe solicitar a ficha para importação, baixe o JSON separadamente.');
-      const old = $('#pre-pdf');
-      if (old) old.remove();
-      const json = button('Baixar ficha para importação (JSON)',() => {
-        downloadFile(new Blob([JSON.stringify(report)],{type:'application/json'}),'consigna-pre-avaliacao.json');
-      });
-      json.id = 'pre-pdf';
-      form.append(json);
+      const pdf = await repairPdf(report);
+      await save(report);
+      screen.removeAttribute('aria-busy');
+      screen.replaceChildren(element('h2','Estimativa pronta'),
+        element('p','A pré-avaliação foi salva neste navegador.'),
+        button('Baixar estimativa de custo',() => downloadFile(pdf,'consigna-estimativa-reparos.pdf'),'primary'));
     } catch {
-      notice('Não foi possível gerar a ficha. Tente novamente.');
+      screen.remove();
+      form.hidden = false;
+      notice('Não foi possível concluir. Confira as fotos e tente novamente.');
     } finally {
       next.disabled = back.disabled = false;
     }
@@ -401,7 +408,35 @@ function downloadFile(blob,name) {
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url),30000);
 }
-function repairReport(report) {
+async function repairReport(report) {
+  try {
+    downloadFile(await repairPdf(report),'consigna-estimativa-reparos.pdf');
+  } catch {
+    notice('Não foi possível gerar o PDF.');
+  }
+}
+async function pdfPhoto(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    const scale = Math.min(1,1000/Math.max(image.naturalWidth,image.naturalHeight));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1,Math.round(image.naturalWidth*scale));
+    canvas.height = Math.max(1,Math.round(image.naturalHeight*scale));
+    const context = canvas.getContext('2d');
+    context.fillStyle = 'white';
+    context.fillRect(0,0,canvas.width,canvas.height);
+    context.drawImage(image,0,0,canvas.width,canvas.height);
+    const bytes = atob(canvas.toDataURL('image/jpeg',.82).split(',')[1]);
+    const hex = Array.from(bytes,byte => byte.charCodeAt(0).toString(16).padStart(2,'0')).join('')+'>';
+    return {width:canvas.width,height:canvas.height,hex};
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+async function repairPdf(report) {
   const hex = value => Array.from(String(value),char => {
     const point = char === '\u00a0' ? 32 : char.codePointAt(0);
     return (point >= 32 && point <= 255 ? point : 63).toString(16).padStart(2,'0');
@@ -435,6 +470,25 @@ function repairReport(report) {
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
     '<< /Length '+stream.length+' >>\nstream\n'+stream+'endstream'
   ];
+  const pages = [3];
+  const photos = report.photos || (report.photo ? [report.photo] : []);
+  for (const [index,file] of photos.entries()) {
+    const {width,height,hex} = await pdfPhoto(file);
+    const imageId = objects.length+1;
+    const streamId = imageId+1;
+    const pageId = imageId+2;
+    const scale = Math.min(523/width,650/height);
+    const w = width*scale, h = height*scale;
+    const drawing = text('CONSIGNA | Foto '+(index+1),36,785,16)
+      +'q '+w+' 0 0 '+h+' '+((595-w)/2)+' '+(750-h)+' cm /Photo Do Q\n';
+    objects.push(
+      '<< /Type /XObject /Subtype /Image /Width '+width+' /Height '+height+' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter [/ASCIIHexDecode /DCTDecode] /Length '+hex.length+' >>\nstream\n'+hex+'\nendstream',
+      '<< /Length '+drawing.length+' >>\nstream\n'+drawing+'endstream',
+      '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> /XObject << /Photo '+imageId+' 0 R >> >> /Contents '+streamId+' 0 R >>'
+    );
+    pages.push(pageId);
+  }
+  objects[1] = '<< /Type /Pages /Count '+pages.length+' /Kids ['+pages.map(id => id+' 0 R').join(' ')+'] >>';
   let pdf = '%PDF-1.4\n';
   const offsets = objects.map((object,index) => {
     const offset = pdf.length;
@@ -442,10 +496,10 @@ function repairReport(report) {
     return offset;
   });
   const xref = pdf.length;
-  pdf += 'xref\n0 6\n0000000000 65535 f \n';
+  pdf += 'xref\n0 '+(objects.length+1)+'\n0000000000 65535 f \n';
   offsets.forEach(offset => { pdf += String(offset).padStart(10,'0')+' 00000 n \n'; });
-  pdf += 'trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF\n';
-  downloadFile(new Blob([pdf],{type:'application/pdf'}),'consigna-estimativa-reparos.pdf');
+  pdf += 'trailer\n<< /Size '+(objects.length+1)+' /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF\n';
+  return new Blob([pdf],{type:'application/pdf'});
 }
 
 function showAssessment(vehicle,container) {
