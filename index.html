@@ -1,6 +1,6 @@
 <!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Avalia Top</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#faf5f5;color:#2e2023;font:16px system-ui,sans-serif}header{background:#301419;color:#fff;padding:18px max(5vw,20px);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}header strong{font-size:27px;letter-spacing:-1px}main{max-width:1120px;margin:auto;padding:36px 20px}nav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:28px}button,select,input{font:inherit;border-radius:9px;padding:10px;border:1px solid #cbd5ce}button{cursor:pointer;background:#fff;color:#2e2023}button.primary,button[aria-current=true]{background:#b0182c;color:#fff;border-color:#b0182c}h1{font-size:clamp(30px,5vw,46px);letter-spacing:-.055em;margin:0}p{line-height:1.5;color:#52635b}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:16px}.card,form,.empty{background:white;border:1px solid #eadcde;border-radius:16px;padding:18px}article h2{margin:10px 0 0;font-size:21px}.media{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:9px;background:#e7eee8;display:grid;place-items:center;color:#51665a}.price{font-size:22px;font-weight:750;color:#b0182c}.badge{font-size:13px;padding:4px 9px;background:#f4ead1;border-radius:20px}label{display:grid;gap:6px;font-size:14px;font-weight:600}input{width:100%;min-width:0}form button{margin-top:12px}dialog{width:min(560px,94vw);border:1px solid #eadcde;border-radius:16px;padding:20px;max-height:90vh}dialog::backdrop{background:#142b2499}#status{min-height:1.5em}a{color:#b0182c}video{width:100%;margin-top:12px}#search{max-width:380px;margin-bottom:16px}
+*{box-sizing:border-box}body{margin:0;background:#faf5f5;color:#2e2023;font:16px system-ui,sans-serif}header{background:#b0182c;color:#fff;padding:18px max(5vw,20px);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}header strong{font-size:27px;letter-spacing:-1px}main{max-width:1120px;margin:auto;padding:36px 20px}nav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:28px}button,select,input{font:inherit;border-radius:9px;padding:10px;border:1px solid #cbd5ce}button{cursor:pointer;background:#fff;color:#2e2023}button.primary,button[aria-current=true]{background:#b0182c;color:#fff;border-color:#b0182c}h1{font-size:clamp(30px,5vw,46px);letter-spacing:-.055em;margin:0}p{line-height:1.5;color:#52635b}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:16px}.card,form,.empty{background:white;border:1px solid #eadcde;border-radius:16px;padding:18px}article h2{margin:10px 0 0;font-size:21px}.media{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:9px;background:#e7eee8;display:grid;place-items:center;color:#51665a}.price{font-size:22px;font-weight:750;color:#b0182c}.badge{font-size:13px;padding:4px 9px;background:#f4ead1;border-radius:20px}label{display:grid;gap:6px;font-size:14px;font-weight:600}input{width:100%;min-width:0}form button{margin-top:12px}dialog{width:min(560px,94vw);border:1px solid #eadcde;border-radius:16px;padding:20px;max-height:90vh}dialog::backdrop{background:#142b2499}#status{min-height:1.5em}a{color:#b0182c}video{width:100%;margin-top:12px}#search{max-width:380px;margin-bottom:16px}
 
 :root{--ink:#301419;--green:#b0182c;--line:#eadcde}
 body{min-width:0}
@@ -155,8 +155,11 @@ nav button[data-section]:active{transform:scale(.97)}
   .evaluation-page{grid-template-columns:1fr 1fr;align-items:start}
   .evaluation-page>h2,.evaluation-page>.assessment-panel:not(.assessment-info):not(.assessment-summary){grid-column:1/-1}
 }
+.home-start{display:inline-grid;place-items:center;min-height:52px;padding:12px 20px;border-radius:10px;background:#b0182c;color:white;font-weight:700;text-decoration:none}
+.home-start:focus-visible{outline:3px solid #ba3144;outline-offset:3px}
+@media(max-width:640px){.home-start{width:100%}}
 </style>
-<body data-profile="viewer"><header><div><strong>Avalia Top</strong></div><label>Perfil<select id="role"><option value="viewer">Visualizador</option><option value="master">Usuário mestre</option></select></label></header>
+<body data-profile="viewer"><header><div><strong>Avalia Top</strong></div><label>Perfil<select id="role"><option value="home">Pré-avaliação</option><option value="viewer">Visualizador</option><option value="master">Usuário mestre</option></select></label></header>
 <main><nav aria-label="Áreas"></nav><h1></h1><p id="intro"></p><p id="status" role="status"></p><section id="content"></section></main>
 <dialog aria-label="Detalhes do veículo"><div id="detail"></div><form method="dialog" style="padding:0;border:0"><button>Fechar</button></form></dialog>
 
@@ -567,7 +570,7 @@ const database = new Promise((resolve,reject) => {
   request.onsuccess = () => resolve(request.result);
   request.onerror = () => reject(request.error);
 });
-let vehicles = [], page = 'feed', mediaUrls = [], dialogUrls = [];
+let vehicles = [], page = 'home', mediaUrls = [], dialogUrls = [];
 const master = () => $('#role').value === 'master';
 function element(tag, value, className) {
   const node = document.createElement(tag);
@@ -762,18 +765,19 @@ function cards(container, list) {
   });
 }
 const pages = {
+  home:['Pré-avaliação do veículo','Informe os dados do seu carro para gerar uma estimativa de reparos.'],
   feed:['Feed de avaliações','Consulte os veículos avaliados para consignação.'],
   pending:['Pendentes de avaliação','Registre o valor para publicar o veículo no feed.'],
   unavailable:['Veículos indisponíveis','Consulte os veículos retirados do feed e recoloque-os quando estiverem disponíveis.'],
   register:['Pré-avaliação','Abra o formulário ou copie o link para compartilhar.']
 };
 const navigationIcons = {feed:'▤',pending:'◷',unavailable:'⊘',register:'＋'};
-const navigationLabels = {feed:'Feed',pending:'Pendentes',unavailable:'Retirados',register:'Pré-avaliação'};
+const navigationLabels = {home:'Início',feed:'Feed',pending:'Pendentes',unavailable:'Retirados',register:'Pré-avaliação'};
 function render() {
   document.body.dataset.profile = master() ? 'master' : 'viewer';
   release(mediaUrls);
   $('nav').replaceChildren();
-  Object.entries(pages).filter(([id]) => master() || id === 'feed').forEach(([id]) => {
+  Object.entries(pages).filter(([id]) => id !== 'home' && (master() || id === 'feed')).forEach(([id]) => {
     const item = button(navigationLabels[id],() => {
       show(id);
       window.scrollTo(0,0);
@@ -790,6 +794,13 @@ function render() {
   $('#intro').textContent = intro;
   const content = $('#content');
   content.replaceChildren();
+  if (page === 'home') {
+    $('nav').replaceChildren();
+    const start = element('a','Comece a sua avaliação','home-start');
+    start.href = '?pre-avaliacao';
+    content.append(start);
+    return;
+  }
   if (page === 'register') {
     const actions = element('div');
     actions.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px';
@@ -855,7 +866,7 @@ function render() {
 $('dialog').addEventListener('close',() => release(dialogUrls));
 $('#role').onchange = () => {
   $('dialog').close();
-  show('feed');
+  show($('#role').value === 'home' ? 'home' : 'feed');
 };
 if (new URLSearchParams(location.search).has("pre-avaliacao")) customerForm();
 else readVehicles().then(result => { vehicles = result; render(); }).catch(() => notice('O armazenamento local está indisponível.'));
