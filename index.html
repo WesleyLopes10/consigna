@@ -124,6 +124,22 @@ nav button[data-section]:active{transform:scale(.97)}
 .pre-slider-labels{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
 .pre-slider-labels button{margin:0;padding:5px;font-size:13px;overflow-wrap:anywhere}
 .pre-slider-labels button[aria-pressed=true]{background:#166348;color:white;border-color:#166348}
+
+.evaluation-dialog{width:min(880px,calc(100% - 32px));max-height:calc(100dvh - 32px);padding:24px}
+.evaluation-dialog #detail{display:grid;gap:14px}
+.evaluation-dialog #detail>h2{margin:0;font-size:clamp(24px,4vw,34px)}
+.evaluation-dialog #detail>.media{max-height:240px;object-fit:contain}
+.assessment-panel{padding:16px;border:1px solid #dce5de;border-radius:12px;background:#f6f9f6;overflow-wrap:anywhere}
+.assessment-panel h3,.evaluation-dialog form h3{margin:0 0 10px}
+.assessment-panel h4{margin:16px 0 6px;color:#15563e}
+.assessment-panel ul{padding-left:22px;margin:0}
+.assessment-panel li{padding:5px 0}
+.assessment-list li span{display:inline-block;margin-left:8px;color:#52635b}
+.assessment-list li .assessment-cost{color:#15563e;font-weight:650}
+@media(max-width:640px){
+  .evaluation-dialog{width:100%;max-height:calc(100dvh - max(8px,env(safe-area-inset-top)));padding:16px 14px max(14px,env(safe-area-inset-bottom))}
+  .assessment-list li span{display:block;margin-left:0}
+}
 </style>
 <body data-profile="viewer"><header><div><strong>Consigna</strong></div><label>Perfil<select id="role"><option value="viewer">Visualizador</option><option value="master">Usuário mestre</option></select></label></header>
 <main><nav aria-label="Áreas"></nav><h1></h1><p id="intro"></p><p id="status" role="status"></p><section id="content"></section></main>
@@ -496,12 +512,23 @@ async function repairPdf(report) {
 }
 
 function showAssessment(vehicle,container) {
-  container.append(element('h3','Pré-avaliação do cliente'),element('p',vehicle.city+' · Placa '+vehicle.plate));
-  const list = element('ul');
+  const panel = element('section',undefined,'assessment-panel');
+  panel.append(element('h3','Pré-avaliação do cliente'));
+  const rows = repairRows(vehicle.answers);
   let total = 0;
-  repairRows(vehicle.answers).forEach(row => {
-    total += (row.low+row.high)/2;
-    list.append(element('li',row.name+' · '+row.condition+' · '+(row.pending ? 'Conferir' : repairRange(row.low,row.high))));
+  checkSections.forEach(([title,indices]) => {
+    const list = element('ul',undefined,'assessment-list');
+    indices.forEach(index => {
+      const row = rows[index];
+      if (!row) return;
+      total += (row.low+row.high)/2;
+      const item = element('li');
+      item.append(element('strong',row.name),
+        element('span',row.condition),
+        element('span',row.pending ? 'Conferir' : repairRange(row.low,row.high),'assessment-cost'));
+      list.append(item);
+    });
+    if (list.childElementCount) panel.append(element('h4',title),list);
   });
   const label = element('label','Valor-base definido pela equipe');
   const base = element('input');
@@ -514,7 +541,10 @@ function showAssessment(vehicle,container) {
       : 'Informe o valor-base para calcular a sugestão.';
   };
   label.append(base);
-  container.append(button('Baixar PDF de reparos',() => repairReport(vehicle)),list,element('p','Desconto indicativo · '+money.format(total),'price'),label,result);
+  const summary = element('section',undefined,'assessment-panel');
+  summary.append(element('h3','Resumo de valores'),element('p','Desconto indicativo · '+money.format(total),'price'),
+    label,result,button('Baixar PDF de reparos',() => repairReport(vehicle)));
+  container.append(panel,summary);
 }
 
 const sample = [
@@ -587,10 +617,28 @@ function description(vehicle) {
 }
 function details(vehicle) {
   const container = $('#detail');
-  container.replaceChildren(element('h2',vehicle.model),element('p',description(vehicle)));
-  container.append(photo(vehicle,dialogUrls));
+  container.replaceChildren(element('h2',vehicle.model));
+  const evaluating = master() && !vehicle.evaluated;
+  $('dialog').classList.toggle('evaluation-dialog',evaluating);
+  if (evaluating) {
+    const info = element('section',undefined,'assessment-panel');
+    const list = element('ul');
+    const specs = [['Ano-modelo',vehicle.year],['Quilometragem',number.format(vehicle.km)+' km'],
+      ['Versão',vehicle.trim],['Placa',vehicle.plate],['Cidade',vehicle.city],
+      ['Proprietário',vehicle.owner],['WhatsApp',vehicle.phone]];
+    specs.forEach(([name,value]) => {
+      if (!value) return;
+      const item = element('li');
+      item.append(element('strong',name+' · '),document.createTextNode(value));
+      list.append(item);
+    });
+    info.append(element('h3','Dados do veículo e contato'),list);
+    container.append(info);
+  }
+  if (!evaluating) container.append(element('p',description(vehicle)));
+  if (!evaluating || vehicle.photo) container.append(photo(vehicle,dialogUrls));
   if (vehicle.evaluated) container.append(element('p',money.format(vehicle.value),'price'));
-  if (master() && vehicle.owner) {
+  if (!evaluating && master() && vehicle.owner) {
     container.append(element('p','Proprietário · '+vehicle.owner),element('p','WhatsApp · '+vehicle.phone));
   }
   if (vehicle.video) {
@@ -611,7 +659,7 @@ function details(vehicle) {
     const submit = element('button','Salvar avaliação e publicar no feed','primary');
     const feedback = element('p');
     feedback.setAttribute('role','status');
-    form.append(label,submit,feedback);
+    form.append(element('h3','Avaliação final'),label,submit,feedback);
     form.onsubmit = async event => {
       event.preventDefault();
       if (!master()) return;
