@@ -101,6 +101,19 @@ nav button[data-section]:active{transform:scale(.97)}
 .pre-section{display:grid;gap:12px}
 .pre-section+.pre-section{margin-top:12px}
 .pre-section h3{margin:0;padding:10px 12px;border-radius:9px;background:#e2f3e9;color:#15563e;font-size:16px}
+
+#repair-report{display:none}
+@media print{
+  body:has(#repair-report) > :not(#repair-report){display:none!important}
+  body:has(#repair-report){background:white}
+  #repair-report{display:block;padding:12mm;font:12px system-ui,sans-serif;color:#132b24}
+  #repair-report .repair-brand{background:#132b24;color:white;padding:12px;font-weight:800;letter-spacing:2px;print-color-adjust:exact}
+  #repair-report h1{font-size:24px;margin-top:12px}
+  #repair-report h2{font-size:17px}
+  #repair-report table{width:100%;border-collapse:collapse}
+  #repair-report th,#repair-report td{text-align:left;padding:5px;border-bottom:1px solid #dce5de}
+  #repair-report tr{break-inside:avoid}
+}
 </style>
 <body data-profile="viewer"><header><div><strong>Consigna</strong></div><label>Perfil<select id="role"><option value="viewer">Visualizador</option><option value="master">Usuário mestre</option></select></label></header>
 <main><nav aria-label="Áreas"></nav><h1></h1><p id="intro"></p><p id="status" role="status"></p><section id="content"></section></main>
@@ -273,6 +286,11 @@ function customerForm() {
       link.remove();
       setTimeout(() => URL.revokeObjectURL(url),30000);
       notice('Ficha pronta. Envie o arquivo baixado à equipe de avaliação.');
+      const old = $('#pre-pdf');
+      if (old) old.remove();
+      const pdf = button('Gerar PDF de reparos',() => repairReport(report));
+      pdf.id = 'pre-pdf';
+      form.append(pdf);
     } catch {
       notice('Não foi possível gerar a ficha. Tente novamente.');
     } finally {
@@ -310,15 +328,55 @@ async function importAssessment(file) {
   });
   vehicles = await readVehicles();
 }
+
+function repairRows(answers) {
+  return answers.map((answer,index) => {
+    const [name,minor,major] = checks[index];
+    const center = [0,minor,major,0][answer];
+    const painting = index < 5 && answer === 1;
+    return {name,condition:options(index)[answer],pending:answer === 3,
+      low:painting ? 500 : Math.floor(center*.75/50)*50,
+      high:painting ? (index === 4 ? 1000 : 500) : Math.ceil(center*1.25/50)*50};
+  });
+}
+function repairRange(low,high) {
+  return low === high ? money.format(low) : money.format(low)+' a '+money.format(high);
+}
+function repairReport(report) {
+  const previous = $('#repair-report');
+  if (previous) previous.remove();
+  const sheet = element('section');
+  sheet.id = 'repair-report';
+  const brand = element('div','C  |  CONSIGNA','repair-brand');
+  sheet.append(brand,element('h1','Estimativa de reparos'),
+    element('p',[report.model,report.year,report.plate,number.format(report.km)+' km'].join(' · ')));
+  const rows = repairRows(report.answers);
+  const table = element('table');
+  const head = table.createTHead().insertRow();
+  ['Item','Condição informada','Estimativa'].forEach(title => head.append(element('th',title)));
+  const body = table.createTBody();
+  rows.forEach(row => {
+    const line = body.insertRow();
+    [row.name,row.condition,row.pending ? 'Conferir' : repairRange(row.low,row.high)]
+      .forEach(value => line.append(element('td',value)));
+  });
+  const low = rows.reduce((sum,row) => sum+row.low,0);
+  const high = rows.reduce((sum,row) => sum+row.high,0);
+  sheet.append(table,element('h2','Total estimado · '+repairRange(low,high)),
+    element('p','Referência média da faixa · '+money.format((low+high)/2)),
+    element('p','Valores indicativos com base nas respostas do checklist. Itens a conferir ficam fora do total. A inspeção e o orçamento da oficina definem o custo final.'));
+  document.body.append(sheet);
+  window.addEventListener('afterprint',() => sheet.remove(),{once:true});
+  window.print();
+}
+
 function showAssessment(vehicle,container) {
   container.append(element('h3','Pré-avaliação do cliente'),element('p',vehicle.city+' · Placa '+vehicle.plate));
   const list = element('ul');
   let total = 0;
-  vehicle.answers.forEach((answer,index) => {
-    const [name,minor,major] = checks[index];
-    const adjustment = [0,minor,major,0][answer];
-    total += adjustment;
-    list.append(element('li',name+' · '+options(index)[answer]+' · '+(answer === 3 ? 'Conferir' : money.format(adjustment))));
+  repairRows(vehicle.answers).forEach(row => {
+    total += (row.low+row.high)/2;
+    list.append(element('li',row.name+' · '+row.condition+' · '+(row.pending ? 'Conferir' : repairRange(row.low,row.high))));
   });
   const label = element('label','Valor-base definido pela equipe');
   const base = element('input');
@@ -331,7 +389,7 @@ function showAssessment(vehicle,container) {
       : 'Informe o valor-base para calcular a sugestão.';
   };
   label.append(base);
-  container.append(list,element('p','Desconto indicativo · '+money.format(total),'price'),label,result);
+  container.append(button('Gerar PDF de reparos',() => repairReport(vehicle)),list,element('p','Desconto indicativo · '+money.format(total),'price'),label,result);
 }
 
 const sample = [
