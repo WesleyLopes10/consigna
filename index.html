@@ -415,27 +415,6 @@ async function repairReport(report) {
     notice('Não foi possível gerar o PDF.');
   }
 }
-async function pdfPhoto(file) {
-  const url = URL.createObjectURL(file);
-  try {
-    const image = new Image();
-    image.src = url;
-    await image.decode();
-    const scale = Math.min(1,1000/Math.max(image.naturalWidth,image.naturalHeight));
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1,Math.round(image.naturalWidth*scale));
-    canvas.height = Math.max(1,Math.round(image.naturalHeight*scale));
-    const context = canvas.getContext('2d');
-    context.fillStyle = 'white';
-    context.fillRect(0,0,canvas.width,canvas.height);
-    context.drawImage(image,0,0,canvas.width,canvas.height);
-    const bytes = atob(canvas.toDataURL('image/jpeg',.82).split(',')[1]);
-    const hex = Array.from(bytes,byte => byte.charCodeAt(0).toString(16).padStart(2,'0')).join('')+'>';
-    return {width:canvas.width,height:canvas.height,hex};
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
 async function repairPdf(report) {
   const hex = value => Array.from(String(value),char => {
     const point = char === '\u00a0' ? 32 : char.codePointAt(0);
@@ -454,13 +433,15 @@ async function repairPdf(report) {
   stream += text(model.slice(72).join(''),36,695);
   stream += text([report.year,report.plate,number.format(report.km)+' km'].filter(Boolean).join(' | '),36,676);
   rows.forEach((row,index) => {
-    const y = 645-index*23;
+    const y = 576-index*23;
     stream += text(row.name,36,y,10)+text(row.condition,220,y,10)
       +text(row.pending ? 'Conferir' : repairRange(row.low,row.high),393,y,10);
   });
-  const bottom = 645-rows.length*23-12;
-  stream += text('Total estimado: '+repairRange(low,high),36,bottom,14);
-  stream += text('Média da faixa: '+money.format((low+high)/2),36,bottom-23);
+  stream += '0.88 0.95 0.90 rg 36 600 523 61 re f\n0.07 0.17 0.14 rg\n';
+  stream += text('TOTAL ESTIMADO',48,644,11);
+  stream += text(repairRange(low,high),48,617,21);
+  stream += text('Média: '+money.format((low+high)/2),365,618,11);
+  const bottom = 576-rows.length*23-12;
   stream += text('Valores indicativos. Itens a conferir ficam fora do total.',36,bottom-46,10);
   stream += text('O custo final depende da inspeção e do orçamento da oficina.',36,bottom-62,10);
   const objects = [
@@ -470,25 +451,6 @@ async function repairPdf(report) {
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
     '<< /Length '+stream.length+' >>\nstream\n'+stream+'endstream'
   ];
-  const pages = [3];
-  const photos = report.photos || (report.photo ? [report.photo] : []);
-  for (const [index,file] of photos.entries()) {
-    const {width,height,hex} = await pdfPhoto(file);
-    const imageId = objects.length+1;
-    const streamId = imageId+1;
-    const pageId = imageId+2;
-    const scale = Math.min(523/width,650/height);
-    const w = width*scale, h = height*scale;
-    const drawing = text('CONSIGNA | Foto '+(index+1),36,785,16)
-      +'q '+w+' 0 0 '+h+' '+((595-w)/2)+' '+(750-h)+' cm /Photo Do Q\n';
-    objects.push(
-      '<< /Type /XObject /Subtype /Image /Width '+width+' /Height '+height+' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter [/ASCIIHexDecode /DCTDecode] /Length '+hex.length+' >>\nstream\n'+hex+'\nendstream',
-      '<< /Length '+drawing.length+' >>\nstream\n'+drawing+'endstream',
-      '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> /XObject << /Photo '+imageId+' 0 R >> >> /Contents '+streamId+' 0 R >>'
-    );
-    pages.push(pageId);
-  }
-  objects[1] = '<< /Type /Pages /Count '+pages.length+' /Kids ['+pages.map(id => id+' 0 R').join(' ')+'] >>';
   let pdf = '%PDF-1.4\n';
   const offsets = objects.map((object,index) => {
     const offset = pdf.length;
