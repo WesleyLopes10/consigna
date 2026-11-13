@@ -133,11 +133,12 @@ nav button[data-section]:active{transform:scale(.97)}
 <ol class="pre-steps" aria-label="Etapas"><li>Seus dados</li><li>Veículo</li><li>Checklist</li></ol>
 <fieldset><legend>Dados pessoais</legend>
 <label>Nome<input name="owner" autocomplete="name" maxlength="120" required></label>
-<label>Telefone / WhatsApp<input name="phone" type="tel" autocomplete="tel" minlength="10" maxlength="22" required></label>
-<label>Cidade<input name="city" autocomplete="address-level2" maxlength="100" required></label></fieldset>
+<label>Telefone / WhatsApp<input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="(65) 99999-0000" pattern="\([0-9]{2}\) [0-9]{4,5}-[0-9]{4}" required></label>
+<label>Cidade<input name="city" list="pre-cities" placeholder="Digite ou escolha a cidade" autocomplete="address-level2" maxlength="100" required></label><datalist id="pre-cities"></datalist></fieldset>
 <fieldset hidden disabled><legend>Carro, foto e vídeo</legend>
 <label>Placa<input name="plate" maxlength="7" pattern="[A-Za-z]{3}[0-9][A-Za-z0-9][0-9]{2}" placeholder="ABC1D23" autocapitalize="characters" required></label>
-<label>Marca e modelo<input name="model" maxlength="100" required></label>
+<label>Marca<input name="brand" list="pre-brands" maxlength="40" placeholder="Digite ou escolha a marca" required></label><datalist id="pre-brands"></datalist>
+<label>Modelo<input name="model" list="pre-models" maxlength="79" placeholder="Digite ou escolha o modelo" required></label><datalist id="pre-models"></datalist>
 <label>Ano-modelo<input name="year" type="number" min="1886" max="2100" required></label>
 <label>Quilometragem<input name="km" type="number" min="0" required></label>
 <label>Foto do veículo (até 8 MB)<input name="photo" type="file" accept="image/*" required></label>
@@ -146,6 +147,57 @@ nav button[data-section]:active{transform:scale(.97)}
 <div class="pre-actions"><button id="pre-back" type="button" hidden>Voltar</button>
 <button id="pre-next" class="primary">Continuar</button></div></form></template>
 <script>
+
+const citySuggestions = ['Tangará da Serra','Barra do Bugres','Campo Novo do Parecis','Sapezal','Nova Olímpia','Denise','Arenápolis','Nortelândia','Santo Afonso','Diamantino','Nova Marilândia','São José do Rio Claro','Cuiabá','Várzea Grande','Lucas do Rio Verde','Nova Mutum','Sorriso','Sinop','Rondonópolis','Cáceres','Pontes e Lacerda','Juína','Brasnorte'];
+const vehicleSuggestions = {
+  Chevrolet:['Onix','Onix Plus','Spin','Tracker','S10','Montana','Cruze','Celta','Prisma','Classic','Cobalt'],
+  Fiat:['Strada','Toro','Argo','Cronos','Mobi','Uno','Palio','Pulse','Fastback','Fiorino','Siena'],
+  Ford:['EcoSport','Ka','Fiesta','Focus','Ranger','Fusion','Territory'],
+  Volkswagen:['Gol','Polo','Virtus','Saveiro','Voyage','T-Cross','Nivus','Amarok','Fox','Jetta','Taos'],
+  Toyota:['Corolla','Corolla Cross','Hilux','SW4','Yaris','Etios'],
+  Hyundai:['HB20','HB20S','Creta','Tucson','ix35'],
+  Honda:['Civic','City','Fit','HR-V','WR-V','ZR-V'],
+  Renault:['Kwid','Sandero','Logan','Duster','Oroch','Captur','Kardian'],
+  Jeep:['Renegade','Compass','Commander'],
+  Nissan:['Kicks','Versa','March','Frontier','Sentra'],
+  Mitsubishi:['L200','Outlander','ASX','Pajero Sport','Eclipse Cross'],
+  Peugeot:['208','2008','308','3008','Partner'],
+  'Citroën':['C3','C4 Cactus','Aircross','Basalt'],
+  BYD:['Dolphin','Dolphin Mini','Song Plus','Yuan Plus','Seal'],
+  GWM:['Haval H6','Ora 03','Poer'],
+  Kia:['Sportage','Cerato','Soul','Picanto'],
+  Suzuki:['Jimny','Vitara','S-Cross'],
+  BMW:['Série 3','X1','X3'],
+  'Mercedes-Benz':['Classe A','Classe C','GLA','GLC'],
+  Audi:['A3','A4','Q3','Q5'],
+  Volvo:['XC40','XC60','EX30'],
+  Ram:['Rampage','1500','2500']
+};
+function configureCustomerFields(form) {
+  const {phone,brand,model} = form.elements;
+  function populate(id,values) {
+    $(id).replaceChildren(...values.map(value => new Option(value,value)));
+  }
+  populate('#pre-cities',citySuggestions);
+  populate('#pre-brands',Object.keys(vehicleSuggestions).sort((a,b) => a.localeCompare(b,'pt-BR')));
+  brand.addEventListener('input',() => {
+    const key = Object.keys(vehicleSuggestions).find(name =>
+      name.localeCompare(brand.value.trim(),'pt-BR',{sensitivity:'base'}) === 0);
+    populate('#pre-models',key ? vehicleSuggestions[key] : []);
+  });
+  phone.addEventListener('input',() => {
+    let digits = phone.value.replace(/\D/g,'');
+    if (digits.length > 11 && digits.startsWith('55')) digits = digits.slice(2);
+    digits = digits.slice(0,11);
+    const area = digits.slice(0,2);
+    const local = digits.slice(2);
+    const split = digits.length === 11 ? 5 : 4;
+    phone.value = digits.length < 3 ? (area ? '('+area : '') :
+      '('+area+') '+local.slice(0,split)+(local.length > split ? '-'+local.slice(split) : '');
+    phone.setCustomValidity(digits.length >= 10 || !digits.length ? '' : 'Informe o DDD e o telefone completo.');
+  });
+}
+
 const $ = selector => document.querySelector(selector);
 const money = new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
 const number = new Intl.NumberFormat('pt-BR');
@@ -214,6 +266,7 @@ function customerForm() {
   $('#intro').textContent = 'Preencha a ficha e envie o arquivo baixado à equipe de avaliação.';
   $('#content').append($('#pre-template').content.cloneNode(true));
   const form = $('#pre-form');
+  configureCustomerFields(form);
   const steps = [...form.querySelectorAll('fieldset')];
   let step = 0;
   const back = $('#pre-back'), next = $('#pre-next');
@@ -275,6 +328,7 @@ function customerForm() {
     next.disabled = back.disabled = true;
     try {
       const report = Object.fromEntries(fields.map(key => [key,data.get(key).trim()]));
+      report.model = data.get('brand').trim()+' '+report.model;
       Object.assign(report,{version:1,id:crypto.randomUUID(),photo:await encode(photo),video:await encode(video),
         answers:checks.map((_,index) => Number(data.get('check'+index)))});
       const url = URL.createObjectURL(new Blob([JSON.stringify(report)],{type:'application/json'}));
