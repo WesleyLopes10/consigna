@@ -140,6 +140,21 @@ nav button[data-section]:active{transform:scale(.97)}
   .evaluation-dialog{width:100%;max-height:calc(100dvh - max(8px,env(safe-area-inset-top)));padding:16px 14px max(14px,env(safe-area-inset-bottom))}
   .assessment-list li span{display:block;margin-left:0}
 }
+
+.evaluation-page{display:grid;gap:16px;margin-top:16px}
+.evaluation-page>h2{margin:0;font-size:clamp(24px,4vw,36px)}
+.evaluation-page>.media{max-height:280px;object-fit:contain}
+.evaluation-page>.assessment-panel{border-left:4px solid #166348}
+.evaluation-page>.assessment-info{background:#edf5ff;border-left-color:#386fa4}
+.evaluation-page>.assessment-info h3{color:#244f7a}
+.evaluation-page>.assessment-summary{background:#fff4dc;border-left-color:#a66c15}
+.evaluation-page>.assessment-summary h3{color:#795000}
+.evaluation-page>.assessment-final{background:#f5edfb;border-left:4px solid #784994}
+.evaluation-page>.assessment-final h3{color:#60377b;margin-top:0}
+@media(min-width:800px){
+  .evaluation-page{grid-template-columns:1fr 1fr;align-items:start}
+  .evaluation-page>h2,.evaluation-page>.assessment-panel:not(.assessment-info):not(.assessment-summary){grid-column:1/-1}
+}
 </style>
 <body data-profile="viewer"><header><div><strong>Consigna</strong></div><label>Perfil<select id="role"><option value="viewer">Visualizador</option><option value="master">Usuário mestre</option></select></label></header>
 <main><nav aria-label="Áreas"></nav><h1></h1><p id="intro"></p><p id="status" role="status"></p><section id="content"></section></main>
@@ -541,7 +556,7 @@ function showAssessment(vehicle,container) {
       : 'Informe o valor-base para calcular a sugestão.';
   };
   label.append(base);
-  const summary = element('section',undefined,'assessment-panel');
+  const summary = element('section',undefined,'assessment-panel assessment-summary');
   summary.append(element('h3','Resumo de valores'),element('p','Desconto indicativo · '+money.format(total),'price'),
     label,result,button('Baixar PDF de reparos',() => repairReport(vehicle)));
   container.append(panel,summary);
@@ -601,6 +616,7 @@ function media(blob, urls) {
 }
 function release(urls) { urls.splice(0).forEach(url => URL.revokeObjectURL(url)); }
 function show(next) {
+  if (page === 'evaluation') release(dialogUrls);
   page = next;
   notice('');
   render();
@@ -616,12 +632,21 @@ function description(vehicle) {
   return [vehicle.trim,vehicle.year,number.format(vehicle.km)+' km'].filter(Boolean).join(' · ');
 }
 function details(vehicle) {
-  const container = $('#detail');
-  container.replaceChildren(element('h2',vehicle.model));
   const evaluating = master() && !vehicle.evaluated;
-  $('dialog').classList.toggle('evaluation-dialog',evaluating);
+  const container = evaluating ? element('section',undefined,'evaluation-page') : $('#detail');
   if (evaluating) {
-    const info = element('section',undefined,'assessment-panel');
+    page = 'evaluation';
+    notice('');
+    release(mediaUrls);
+    release(dialogUrls);
+    $('h1').textContent = 'Avaliar veículo';
+    $('#intro').textContent = '';
+    $('#content').replaceChildren(button('← Voltar para pendentes',() => show('pending')),container);
+    window.scrollTo(0,0);
+  }
+  container.replaceChildren(element('h2',vehicle.model));
+  if (evaluating) {
+    const info = element('section',undefined,'assessment-panel assessment-info');
     const list = element('ul');
     const specs = [['Ano-modelo',vehicle.year],['Quilometragem',number.format(vehicle.km)+' km'],
       ['Versão',vehicle.trim],['Placa',vehicle.plate],['Cidade',vehicle.city],
@@ -674,6 +699,7 @@ function details(vehicle) {
         submit.disabled = false;
       }
     };
+    form.classList.add('assessment-final');
     container.append(form);
   }
   if (master() && vehicle.evaluated) {
@@ -695,7 +721,7 @@ function details(vehicle) {
     });
     container.append(action,feedback);
   }
-  $('dialog').showModal();
+  if (!evaluating) $('dialog').showModal();
 }
 function cards(container, list) {
   release(mediaUrls);
