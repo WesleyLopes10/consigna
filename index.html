@@ -176,7 +176,7 @@ nav button[data-section]:active{transform:scale(.97)}
 .photo-guide{padding:14px;margin:0 0 16px;border:1px solid #ebc5cb;border-left:4px solid #b0182c;border-radius:10px;background:#fce8eb}
 .photo-guide p{margin:6px 0 10px}
 .photo-guide img{display:block;width:100%;height:auto;border-radius:8px}
-.section-photo{padding:12px;background:#fce8eb;border:1px solid #ebc5cb;border-radius:10px}
+.section-photo{margin-top:10px;padding:12px;background:#fce8eb;border:1px solid #ebc5cb;border-radius:10px}
 </style>
 <body data-profile="viewer"><header><div><strong>Avalia Top</strong></div><label>Perfil<select id="role"><option value="home">Pré-avaliação</option><option value="viewer">Visualizador</option><option value="master">Usuário mestre</option></select></label></header>
 <main><nav aria-label="Áreas"></nav><h1></h1><p id="intro"></p><p id="status" role="status"></p><section id="content"></section></main>
@@ -341,7 +341,7 @@ function customerForm() {
     });
     window.scrollTo(0,0);
   }
-  checkSections.forEach(([name,indices],sectionIndex) => {
+  checkSections.forEach(([name,indices]) => {
     const section = element('section',undefined,'pre-section');
     section.append(element('h3',name));
     indices.forEach(index => {
@@ -377,13 +377,13 @@ function customerForm() {
         labels.append(choice);
       });
       choices.append(slider,answer,labels);
+      const photoLabel = element('label','Foto · '+title+' (até 8 MB)','section-photo');
+      const photoInput = element('input');
+      Object.assign(photoInput,{type:'file',name:'itemPhoto'+index,accept:'image/*',required:true});
+      photoLabel.append(photoInput);
+      group.append(photoLabel);
       section.append(group);
     });
-    const photoLabel = element('label','Foto da seção · '+name+' (até 8 MB)','section-photo');
-    const photoInput = element('input');
-    Object.assign(photoInput,{type:'file',name:'sectionPhoto'+sectionIndex,accept:'image/*',required:true});
-    photoLabel.append(photoInput);
-    section.append(photoLabel);
     $('#pre-checks').append(section);
   });
   function updateCount() {
@@ -405,10 +405,10 @@ function customerForm() {
     steps.forEach(section => section.disabled = false);
     const data = new FormData(form);
     display();
-    const photos = checkSections.map((_,index) => data.get('sectionPhoto'+index));
+    const photos = checks.map((_,index) => data.get('itemPhoto'+index));
     const video = data.get('video');
     if (photos.some(photo => photo.size > 8*1024**2) || video.size > 25*1024**2) {
-      notice('Use uma foto de até 8 MB por seção e um vídeo de até 25 MB.');
+      notice('Use uma foto de até 8 MB por pergunta e um vídeo de até 25 MB.');
       return;
     }
     next.disabled = back.disabled = true;
