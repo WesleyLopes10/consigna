@@ -324,7 +324,7 @@ function customerForm() {
   document.body.classList.add("customer-app");
   $('header label').remove();
   $('nav').remove();
-  $('h1').textContent = 'Pré-avaliação do veículo';
+  $('h1').textContent = 'Faça a avaliação do seu carro';
   $('#intro').textContent = 'Preencha a ficha para gerar a estimativa de reparos.';
   $('#content').append($('#pre-template').content.cloneNode(true));
   const form = $('#pre-form');
@@ -798,7 +798,7 @@ function cards(container, list) {
   });
 }
 const pages = {
-  home:['Faça a pré-avaliação do seu carro','Informe os dados do veículo, responda ao checklist e baixe sua estimativa de reparos.'],
+  home:['Faça a avaliação do seu carro','Informe os dados do veículo, responda ao checklist e baixe sua estimativa de reparos.'],
   feed:['Feed de avaliações','Consulte os veículos avaliados para consignação.'],
   pending:['Pendentes de avaliação','Registre o valor para publicar o veículo no feed.'],
   unavailable:['Veículos indisponíveis','Consulte os veículos retirados do feed e recoloque-os quando estiverem disponíveis.'],
