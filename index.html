@@ -873,11 +873,14 @@ function comparableListings(vehicle) {
       }
       if (!response.ok) throw Error();
       const {cars,average} = await response.json();
+      const search = new URL('https://www.usadofacil.com.br/v6/resultado_busca.asp');
+      search.search = new URLSearchParams({tipo:'0',veiculo:query.toUpperCase(),valor:'',
+        motorizacao:defaults.motor,ano:defaults.year,cidade:'',origem:'default'});
       if (average != null) results.append(element('p','Referência média de venda · '+money.format(average),'market-price'));
       cars.forEach(car => {
         const card = element('article',undefined,'market-card');
-        const link = element('a','Ver anúncio');
-        Object.assign(link,{href:car.url,target:'_blank',rel:'noopener noreferrer'});
+        const link = element('a','Ver busca no Usado Fácil');
+        Object.assign(link,{href:search.href,target:'_blank',rel:'noopener noreferrer'});
         if (car.photo) {
           const image = element('img',undefined,'market-listing-photo');
           Object.assign(image,{src:car.photo,alt:car.title,loading:'lazy',referrerPolicy:'no-referrer'});
