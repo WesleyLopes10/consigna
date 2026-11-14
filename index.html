@@ -759,6 +759,26 @@ function description(vehicle) {
   return [vehicle.trim,vehicle.year,number.format(vehicle.km)+' km'].filter(Boolean).join(' · ');
 }
 
+async function savePlateLookup(vehicle,data) {
+  const db = await database;
+  const plateLookup = {plate:vehicle.plate,data};
+  await new Promise((resolve,reject) => {
+    const transaction = db.transaction('vehicles','readwrite');
+    transaction.oncomplete = resolve;
+    transaction.onabort = () => reject(transaction.error || Error('Ficha alterada'));
+    const store = transaction.objectStore('vehicles');
+    const request = store.get(vehicle.id);
+    request.onsuccess = () => {
+      const current = request.result;
+      if (!current || current.plate !== vehicle.plate) {
+        transaction.abort();
+        return;
+      }
+      store.put({...current,plateLookup});
+    };
+  });
+  vehicles = await readVehicles();
+}
 function marketCards(vehicle,container) {
   const panel = element('section',undefined,'assessment-panel market-panel');
   const heading = element('h3','Tabela FIPE');
@@ -772,10 +792,12 @@ function marketCards(vehicle,container) {
     try {
       const response = await fetch('./api/placa?placa='+encodeURIComponent(vehicle.plate),{signal:AbortSignal.timeout(10000)});
       if (!response.ok) throw Error();
-      display(await response.json());
-      status.textContent = '';
+      const data = await response.json();
+      await savePlateLookup(vehicle,data);
+      display(data);
+      status.textContent = 'Consulta salva na ficha.';
     } catch {
-      status.textContent = 'Consulta indisponível. Tente novamente.';
+      status.textContent = 'Não foi possível concluir ou salvar a consulta. Tente novamente.';
     } finally {
       lookup.disabled = false;
     }
@@ -898,7 +920,7 @@ function details(vehicle) {
       if (!master()) return;
       action.disabled = true;
       try {
-        await save({...vehicle,unavailable});
+        await save({...vehicles.find(item => item.id === vehicle.id) || vehicle,unavailable});
         $('dialog').close();
         render();
         notice(unavailable ? 'Veículo retirado do feed.' : 'Veículo de volta ao feed.');
