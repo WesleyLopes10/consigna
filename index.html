@@ -824,6 +824,12 @@ async function savePlateLookup(vehicle,data) {
   });
   vehicles = await readVehicles();
 }
+async function normalizeVehicle(vehicle,motor) {
+  const raw = vehicle.plateLookup?.data?.model || vehicle.model;
+  const response = await fetch('./api/normalizar-veiculo?'+new URLSearchParams({modelo:raw,motorizacao:motor}),{signal:AbortSignal.timeout(12000)});
+  if (!response.ok) throw Error('IA indisponível');
+  return response.json();
+}
 function usadoFacilFields(vehicle) {
   const data = vehicle.plateLookup?.data;
   const raw = (data?.model || vehicle.model || '').trim();
@@ -870,7 +876,19 @@ function comparableListings(vehicle) {
       status.textContent = 'Não foi possível buscar os anúncios. Tente novamente.';
     } finally { lookup.disabled = false; }
   });
-  panel.append(label,lookup,status,results);
+  const normalize = button('Ajustar modelo com IA',async () => {
+    normalize.disabled = true;
+    status.textContent = 'Ajustando modelo…';
+    try {
+      const result = await normalizeVehicle(vehicle,defaults.motor);
+      model.value = result.model;
+      defaults.motor = result.motor;
+      status.textContent = 'Modelo ajustado. Confira e busque os anúncios.';
+    } catch {
+      status.textContent = 'IA indisponível. Você pode editar o modelo manualmente.';
+    } finally { normalize.disabled = false; }
+  });
+  panel.append(label,normalize,lookup,status,results);
   return panel;
 }
 function marketCards(vehicle,container) {
@@ -1117,7 +1135,22 @@ function cards(container, list) {
       }
       [term,motor,year].forEach(field => field.addEventListener('input',updateSearchLink));
       updateSearchLink();
-      search.append(element('summary','Consultar Usado Fácil'),label,motorLabel,yearLabel,link);
+      const status = element('p');
+      status.setAttribute('role','status');
+      const normalize = button('Ajustar busca com IA',async () => {
+        normalize.disabled = true;
+        status.textContent = 'Ajustando modelo e motorização…';
+        try {
+          const result = await normalizeVehicle(vehicle,motor.value);
+          term.value = result.model;
+          motor.value = result.motor;
+          updateSearchLink();
+          status.textContent = 'Busca ajustada. Confira os campos antes de abrir.';
+        } catch {
+          status.textContent = 'IA indisponível. Você pode editar os campos manualmente.';
+        } finally { normalize.disabled = false; }
+      });
+      search.append(element('summary','Consultar Usado Fácil'),label,motorLabel,yearLabel,normalize,status,link);
       card.append(search);
     }
     container.append(card);
