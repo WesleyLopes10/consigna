@@ -516,7 +516,7 @@ function customerForm() {
     lookup.disabled = true;
     lookupStatus.textContent = 'Consultando placa…';
     try {
-      const response = await fetch('./api/placa?placa='+encodeURIComponent(value),{signal:AbortSignal.timeout(10000)});
+      const response = await fetch('./api/placa?placa='+encodeURIComponent(value)+'&modo=cadastro',{signal:AbortSignal.timeout(10000)});
       if (!response.ok) throw Error('Consulta indisponível');
       const data = await response.json();
       if (plate.value.trim().toUpperCase() !== value) {
@@ -1221,7 +1221,7 @@ function marketCards(vehicle,container) {
   toolbar.append(heading,lookup);
   panel.append(toolbar,status,results);
   container.append(panel);
-  if (vehicle.plateLookup?.plate === vehicle.plate) display(vehicle.plateLookup.data,vehicle.plateLookup.consultedAt);
+  if (vehicle.plateLookup?.plate === vehicle.plate && vehicle.plateLookup.data?.lookupMode !== 'cadastro') display(vehicle.plateLookup.data,vehicle.plateLookup.consultedAt);
   else status.textContent = 'Consulte a placa para carregar a FIPE e os dados do veículo.';
 }
 
