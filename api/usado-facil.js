@@ -4,8 +4,11 @@ module.exports = async (req,res) => {
   if (!model || model.length > 100) return res.status(400).end();
   const key = process.env.FIRECRAWL_API_KEY;
   if (!key) return res.status(503).end();
-  const url = new URL('https://www.usadofacil.com.br/V6/resultado_busca.asp');
-  url.searchParams.set('veiculo',model);
+  const url = new URL('https://www.usadofacil.com.br/v6/resultado_busca.asp');
+  const motor = String(req.query.motorizacao || '').trim().replace(',','.');
+  const year = String(req.query.ano || '').trim();
+  if ((motor && !/^\d\.\d$/.test(motor)) || (year && !/^\d{4}$/.test(year))) return res.status(400).end();
+  url.search = new URLSearchParams({tipo:'0',veiculo:model.toUpperCase(),valor:'',motorizacao:motor,ano:year,cidade:'',origem:'default'}).toString();
   try {
     const response = await fetch('https://api.firecrawl.dev/v2/scrape',{
       method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},
