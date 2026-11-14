@@ -1080,7 +1080,22 @@ function cards(container, list) {
     }
     if (page === 'pending' && master()) {
       const search = element('details',undefined,'pending-market');
-      search.append(element('summary','Consultar Usado Fácil'),comparableListings(vehicle));
+      const term = element('input');
+      term.value = (vehicle.plateLookup?.data?.model || vehicle.model || '').trim().toLowerCase();
+      if (/\bhb20\w*\b/i.test(term.value)) term.value = 'hb20';
+      const label = element('label','Modelo para buscar');
+      label.append(term);
+      const link = element('a','Abrir busca no Usado Fácil','download-photo');
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      function updateSearchLink() {
+        const query = term.value.trim().toLowerCase();
+        if (query) link.href = 'https://www.usadofacil.com.br/V6/resultado_busca.asp?veiculo='+encodeURIComponent(query);
+        else link.removeAttribute('href');
+      }
+      term.addEventListener('input',updateSearchLink);
+      updateSearchLink();
+      search.append(element('summary','Consultar Usado Fácil'),label,link);
       card.append(search);
     }
     container.append(card);
