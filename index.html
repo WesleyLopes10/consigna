@@ -856,6 +856,7 @@ function comparableListings(vehicle) {
     lookup.disabled = true;
     status.textContent = 'Buscando anúncios…';
     results.replaceChildren();
+    panel.querySelector('[data-market-report]')?.remove();
     try {
       if (query === defaults.model) {
         try {
@@ -876,7 +877,17 @@ function comparableListings(vehicle) {
       const search = new URL('https://www.usadofacil.com.br/v6/resultado_busca.asp');
       search.search = new URLSearchParams({tipo:'0',veiculo:query.toUpperCase(),valor:'',
         motorizacao:defaults.motor,ano:defaults.year,cidade:'',origem:'default'});
-      if (average != null) results.append(element('p','Referência média de venda · '+money.format(average),'market-price'));
+      const report = element('section',undefined,'market-card');
+      report.append(element('h4','Relatório de mercado'),element('p',[query,defaults.motor,defaults.year].filter(Boolean).join(' · ')),
+        element('p',average == null ? 'Amostra insuficiente para indicar um preço.' : 'Preço de venda indicado · '+money.format(average),'market-price'),
+        element('p',cars.length+' de 3 comparáveis encontrados na página consultada. O cálculo usa a média dos três menores preços anunciados do mesmo ano-modelo.'));
+      if (cars.length) {
+        const evidence = element('ul');
+        cars.forEach(car => evidence.append(element('li',[car.title,car.year,car.mileage,money.format(car.amount)].filter(Boolean).join(' · '))));
+        report.append(evidence);
+      }
+      results.before(report);
+      results.previousElementSibling.dataset.marketReport = 'true';
       cars.forEach(car => {
         const card = element('article',undefined,'market-card');
         const link = element('a','Ver busca no Usado Fácil');
