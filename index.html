@@ -1085,17 +1085,33 @@ function cards(container, list) {
       if (/\bhb20\w*\b/i.test(term.value)) term.value = 'hb20';
       const label = element('label','Modelo para buscar');
       label.append(term);
+      const motor = element('input');
+      const api = vehicle.plateLookup?.data;
+      const displacement = Number(api?.specs?.cilindradas);
+      motor.value = displacement >= 500 && displacement <= 8000 ? (displacement/1000).toFixed(1) : '';
+      motor.placeholder = 'Ex.: 1.0';
+      const motorLabel = element('label','Motorização');
+      motorLabel.append(motor);
+      const year = element('input');
+      year.value = vehicle.year || api?.year || '';
+      year.inputMode = 'numeric';
+      const yearLabel = element('label','Ano');
+      yearLabel.append(year);
       const link = element('a','Abrir busca no Usado Fácil','download-photo');
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
       function updateSearchLink() {
         const query = term.value.trim().toLowerCase();
-        if (query) link.href = 'https://www.usadofacil.com.br/V6/resultado_busca.asp?veiculo='+encodeURIComponent(query);
+        if (query) {
+          const params = new URLSearchParams({tipo:'0',veiculo:query.toUpperCase(),valor:'',
+            motorizacao:motor.value.trim().replace(',','.'),ano:year.value.trim(),cidade:'',origem:'default'});
+          link.href = 'https://www.usadofacil.com.br/v6/resultado_busca.asp?'+params;
+        }
         else link.removeAttribute('href');
       }
-      term.addEventListener('input',updateSearchLink);
+      [term,motor,year].forEach(field => field.addEventListener('input',updateSearchLink));
       updateSearchLink();
-      search.append(element('summary','Consultar Usado Fácil'),label,link);
+      search.append(element('summary','Consultar Usado Fácil'),label,motorLabel,yearLabel,link);
       card.append(search);
     }
     container.append(card);
