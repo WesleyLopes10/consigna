@@ -19,7 +19,20 @@ module.exports = async function handler(req, res) {
     const year = [data.anoModelo,data.extra?.ano_modelo].map(Number).find(value =>
       Number.isInteger(value) && value >= 1886 && value <= 2100);
     if (!model && !year) return res.status(404).json({error:'Dados do veículo indisponíveis.'});
-    return res.status(200).json({brand,model,year});
+    const specs = {};
+    for (const key of ['SUBMODELO','VERSAO','ano','cor','municipio','uf','origem','situacao','codigoSituacao','data','placa_alternativa']) {
+      if (typeof data[key] === 'string' && data[key].trim()) specs[key] = data[key];
+    }
+    for (const key of ['ano_fabricacao','ano_modelo','combustivel','cilindradas','caixa_cambio','carroceria','eixos','especie','grupo','nacionalidade','peso_bruto_total','quantidade_passageiro','segmento','sub_segmento','tipo_carroceria','tipo_veiculo','cap_maxima_tracao']) {
+      if (typeof data.extra?.[key] === 'string' && data.extra[key].trim()) specs[key] = data.extra[key];
+    }
+    const fipe = (Array.isArray(data.fipe?.dados) ? data.fipe.dados : [])
+      .filter(row => typeof row?.texto_valor === 'string' && row.texto_valor.trim())
+      .map(row => ({value:row.texto_valor,model:row.texto_modelo,brand:row.texto_marca,
+        year:row.ano_modelo,code:row.codigo_fipe,reference:row.mes_referencia,
+        fuel:row.combustivel,score:Number(row.score) || 0}))
+      .sort((a,b) => b.score-a.score);
+    return res.status(200).json({brand,model,year,specs,fipe});
   } catch {
     return res.status(502).json({error:'Consulta indisponível.'});
   }
