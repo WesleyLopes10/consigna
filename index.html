@@ -284,6 +284,7 @@ const money = new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
 const number = new Intl.NumberFormat('pt-BR');
 const date = new Intl.DateTimeFormat('pt-BR',{dateStyle:'medium'});
 
+const photoOptionalItems = new Set(['Freios','Pneus','Suspensão','Câmbio','Vidros e travas elétricas','Ar-condicionado']);
 const checks = [
  ['Porta esquerda',250,700],['Porta direita',250,700],['Para-choque dianteiro',250,650],
  ['Para-choque traseiro',250,650],['Capô e teto',350,1000],['Pneus',400,1200],
@@ -446,11 +447,13 @@ function customerForm() {
         labels.append(choice);
       });
       choices.append(slider,answer,labels);
-      const photoLabel = element('label','Foto · '+title+' (até 8 MB)','section-photo');
-      const photoInput = element('input');
-      Object.assign(photoInput,{type:'file',name:'itemPhoto'+index,accept:'image/*',required:true});
-      photoLabel.append(photoInput);
-      group.append(photoLabel);
+      if (!photoOptionalItems.has(title)) {
+        const photoLabel = element('label','Foto · '+title+' (até 8 MB)','section-photo');
+        const photoInput = element('input');
+        Object.assign(photoInput,{type:'file',name:'itemPhoto'+index,accept:'image/*',required:true});
+        photoLabel.append(photoInput);
+        group.append(photoLabel);
+      }
       section.append(group);
     });
     $('#pre-checks').append(section);
@@ -474,10 +477,10 @@ function customerForm() {
     steps.forEach(section => section.disabled = false);
     const data = new FormData(form);
     display();
-    const photos = checks.map((_,index) => data.get('itemPhoto'+index));
+    const photos = checks.flatMap(([title],index) => photoOptionalItems.has(title) ? [] : [data.get('itemPhoto'+index)]);
     const video = data.get('video');
     if (photos.some(photo => photo.size > 8*1024**2) || video.size > 25*1024**2) {
-      notice('Use uma foto de até 8 MB por pergunta e um vídeo de até 25 MB.');
+      notice('Use uma foto de até 8 MB por pergunta que pede foto e um vídeo de até 25 MB.');
       return;
     }
     next.disabled = back.disabled = true;
