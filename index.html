@@ -543,6 +543,7 @@ function customerForm() {
       report.model = data.get('brand').trim()+' '+report.model;
       report.plate = report.plate.toUpperCase();
       report.vehicleKind = data.get('vehicleKind');
+      report.reportedYear = data.get('reportedYear');
       if (plateLookup?.plate === report.plate) report.plateLookup = plateLookup;
       Object.assign(report,{id:crypto.randomUUID(),created:Date.now(),photo:photos[0],photos,video,
         answers:checks.map((_,index) => Number(data.get('check'+index)))});
@@ -848,7 +849,7 @@ function usadoFacilFields(vehicle) {
   const raw = (data?.model || vehicle.model || '').trim();
   const model = /\bhb20s/i.test(raw) ? 'HB20S' : /\bhb20/i.test(raw) ? 'HB20' : raw;
   const cc = Number(data?.specs?.cilindradas);
-  return {model,motor:cc >= 500 && cc <= 8000 ? (cc/1000).toFixed(1) : '',year:[data?.specs?.ano,vehicle.year,data?.year].map(value => String(value || '').trim()).find(value => /^\d{4}$/.test(value)) || ''};
+  return {model,motor:cc >= 500 && cc <= 8000 ? (cc/1000).toFixed(1) : '',year:[data?.specs?.ano,vehicle.reportedYear,vehicle.year,data?.year].map(value => String(value || '').trim()).find(value => /^\d{4}$/.test(value)) || ''};
 }
 function comparableListings(vehicle) {
   const defaults = usadoFacilFields(vehicle);
@@ -888,8 +889,8 @@ function comparableListings(vehicle) {
         const error = await response.json().catch(() => ({}));
         status.textContent = error.error || 'Não foi possível buscar os anúncios.';
         const direct = new URL('https://www.usadofacil.com.br/v6/resultado_busca.asp');
-        direct.search = new URLSearchParams({tipo:'0',veiculo:query.toUpperCase(),valor:'',
-          motorizacao:defaults.motor,ano:defaults.year,cidade:'',origem:'default'});
+        direct.search = new URLSearchParams({veiculo:query.toUpperCase(),
+          motorizacao:defaults.motor,anomin:defaults.year});
         const link = element('a','Abrir busca no Usado Fácil');
         Object.assign(link,{href:direct.href,target:'_blank',rel:'noopener noreferrer'});
         results.append(link);
@@ -897,8 +898,8 @@ function comparableListings(vehicle) {
       }
       const {cars,average,aiValidated,comparables} = await response.json();
       const search = new URL('https://www.usadofacil.com.br/v6/resultado_busca.asp');
-      search.search = new URLSearchParams({tipo:'0',veiculo:query.toUpperCase(),valor:'',
-        motorizacao:defaults.motor,ano:defaults.year,cidade:'',origem:'default'});
+      search.search = new URLSearchParams({veiculo:query.toUpperCase(),
+        motorizacao:defaults.motor,anomin:defaults.year});
       const report = element('section',undefined,'market-card');
       report.append(element('h4','Relatório de mercado'),element('p',[query,defaults.motor,defaults.year].filter(Boolean).join(' · ')),
         element('p',average == null ? (aiValidated === false && cars.length ? 'Anúncios encontrados. Confira as versões antes de indicar um preço.' : 'Amostra insuficiente para indicar um preço.') : 'Preço de venda indicado · '+money.format(average),'market-price'),
