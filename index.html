@@ -824,11 +824,19 @@ async function savePlateLookup(vehicle,data) {
   });
   vehicles = await readVehicles();
 }
+function usadoFacilFields(vehicle) {
+  const data = vehicle.plateLookup?.data;
+  const raw = (data?.model || vehicle.model || '').trim();
+  const model = /\bhb20s/i.test(raw) ? 'HB20S' : /\bhb20/i.test(raw) ? 'HB20' : raw;
+  const cc = Number(data?.specs?.cilindradas);
+  return {model,motor:cc >= 500 && cc <= 8000 ? (cc/1000).toFixed(1) : '',year:vehicle.year || data?.year || ''};
+}
 function comparableListings(vehicle) {
+  const defaults = usadoFacilFields(vehicle);
   const panel = element('section',undefined,'assessment-panel');
   panel.append(element('h3','Anúncios no Usado Fácil'));
   const model = element('input');
-  model.value = vehicle.plateLookup?.data?.model || vehicle.model;
+  model.value = defaults.model;
   model.maxLength = 100;
   const label = element('label','Modelo para buscar');
   label.append(model);
@@ -842,7 +850,7 @@ function comparableListings(vehicle) {
     status.textContent = 'Buscando anúncios…';
     results.replaceChildren();
     try {
-      const response = await fetch('./api/usado-facil?modelo='+encodeURIComponent(query));
+      const response = await fetch('./api/usado-facil?'+new URLSearchParams({modelo:query,motorizacao:defaults.motor,ano:defaults.year}));
       if (response.status === 503) {
         status.textContent = 'Busca ainda não configurada no servidor.';
         return;
@@ -1081,19 +1089,17 @@ function cards(container, list) {
     if (page === 'pending' && master()) {
       const search = element('details',undefined,'pending-market');
       const term = element('input');
-      term.value = (vehicle.plateLookup?.data?.model || vehicle.model || '').trim().toLowerCase();
-      if (/\bhb20\w*\b/i.test(term.value)) term.value = 'hb20';
+      const defaults = usadoFacilFields(vehicle);
+      term.value = defaults.model;
       const label = element('label','Modelo para buscar');
       label.append(term);
       const motor = element('input');
-      const api = vehicle.plateLookup?.data;
-      const displacement = Number(api?.specs?.cilindradas);
-      motor.value = displacement >= 500 && displacement <= 8000 ? (displacement/1000).toFixed(1) : '';
+      motor.value = defaults.motor;
       motor.placeholder = 'Ex.: 1.0';
       const motorLabel = element('label','Motorização');
       motorLabel.append(motor);
       const year = element('input');
-      year.value = vehicle.year || api?.year || '';
+      year.value = defaults.year;
       year.inputMode = 'numeric';
       const yearLabel = element('label','Ano');
       yearLabel.append(year);
