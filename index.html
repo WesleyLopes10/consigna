@@ -823,15 +823,25 @@ function purchaseCard(vehicle,rows) {
         }
         if (!row && !asking.length) card.append(element('p','Estimativa indicativa da IA, com base nos dados do veículo e conhecimento geral.'));
         if (history.length < 2) card.append(element('p','Histórico insuficiente para avaliar a tendência.'));
+        let projection;
+        if (history.length >= 3) {
+          try {
+            const rate = await forecastRate(history);
+            projection = [1,2,3].map(step=>history.at(-1)*(1+rate)**step);
+          } catch { card.append(element('p','Projeção indisponível nesta análise.')); }
+        }
         const response = await fetch('./api/sugestao-compra',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({kind,fipe:row ? price(row.value) : null,history,asking,repairs,vehicle:{model:current.model,year:current.year,km:current.km}}),signal:AbortSignal.timeout(25000)});
+          body:JSON.stringify({kind,fipe:row ? price(row.value) : null,history,asking,repairs,projection,vehicle:{model:current.model,year:current.year,km:current.km}}),signal:AbortSignal.timeout(25000)});
         if (!response.ok) throw Error((await response.json().catch(()=>({}))).error || 'Falha na consulta de compra.');
         const data = await response.json();
-        if (!Number.isFinite(data.suggestion)) throw Error();
-        card.append(element('p',money.format(data.suggestion),'market-price'),
+        if (!Array.isArray(data.scenarios)) throw Error();
+        card.append(
           element('p',[row ? row.model+' · FIPE '+row.code : 'Sem FIPE específica para este câmbio',asking.length+' anúncio(s)'].join(' · ')),
-          element('p','Base '+money.format(data.base)+' · Reserva '+data.reserve+'% · Reparos '+money.format(repairs)),
+          element('p','Base '+money.format(data.base)+' · Desconto indicativo '+money.format(repairs)),
           element('p',data.reason));
+        data.scenarios.forEach(({margin,offer}) => {
+          card.append(element('strong','Margem '+money.format(margin)),element('p',offer > 0 ? money.format(offer) : 'Sem proposta positiva','market-price'));
+        });
       } catch (error) {
         card.append(element('p',error.message || 'Não foi possível concluir a análise desta versão.'));
       }
@@ -1146,6 +1156,21 @@ function comparableListings(vehicle) {
   return panel;
 }
 
+const forecastRequests = new Map();
+function forecastRate(values) {
+  const key = JSON.stringify(values);
+  if (!forecastRequests.has(key)) {
+    const request = fetch('./api/fipe-projecao',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({values}),signal:AbortSignal.timeout(10000)}).then(async response => {
+      if (!response.ok) throw Error();
+      const {rate} = await response.json();
+      if (!Number.isFinite(rate) || Math.abs(rate)>0.05) throw Error();
+      return rate;
+    }).catch(error => { forecastRequests.delete(key); throw error; });
+    forecastRequests.set(key,request);
+  }
+  return forecastRequests.get(key);
+}
 function fipeHistory(row) {
   const box = element('section',undefined,'fipe-history');
   const status = element('p');
@@ -1178,24 +1203,17 @@ function fipeHistory(row) {
       let future = [], currentLimit = 12, selectedPeriod;
       const feedback = element('p');
       feedback.setAttribute('role','status');
-      const project = button('Projetar próximos 3 meses com IA',async () => {
-        project.disabled = true;
+      async function project() {
         feedback.textContent = 'Calculando projeção…';
         try {
-          const response = await fetch('./api/fipe-projecao',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({values:points.slice(-12).map(([,value])=>value)}),signal:AbortSignal.timeout(10000)});
-          if (!response.ok) throw Error();
-          const {rate} = await response.json();
-          if (!Number.isFinite(rate) || Math.abs(rate)>0.05) throw Error();
+          const rate = await forecastRate(points.slice(-12).map(([,value])=>value));
           const [date,value] = points.at(-1);
           const [year,m] = date.split('-').map(Number);
           future = [1,2,3].map(step=>[new Date(Date.UTC(year,m-1+step,1)).toISOString().slice(0,7),value*(1+rate)**step]);
           draw(currentLimit,selectedPeriod);
           feedback.textContent = 'Linha tracejada: projeção da IA baseada no histórico FIPE.';
         } catch { feedback.textContent = 'Projeção indisponível. Tente novamente.'; }
-        finally { project.disabled = false; }
-      });
-      project.disabled = points.length < 3;
+      }
       function draw(limit,selected) {
         currentLimit = limit;
         selectedPeriod = selected;
@@ -1270,7 +1288,8 @@ function fipeHistory(row) {
         const control = button(name,()=>draw(limit,control));
         periods.append(control);
       });
-      chart.append(periods,view,project,feedback);
+      chart.append(periods,view,feedback);
+      if (points.length >= 3) project();
       draw(12,periods.children[1]);
       status.textContent = '';
       action.textContent = 'Ocultar desvalorização';
