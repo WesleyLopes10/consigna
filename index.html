@@ -805,14 +805,10 @@ function purchaseCard(vehicle,rows) {
       const unique = [...new Map(matches.map(row=>[row.code,row])).values()];
       const asking = ads.filter(ad=>kindOf([ad.title,ad.version].join(' '))===kind &&
         (!year || String(ad.year || '').match(/\d{4}/g)?.at(-1)===year) && Number.isFinite(ad.amount) && ad.amount>0).map(ad=>ad.amount);
-      if (unique.length !== 1) {
-        card.append(element('p','Não há uma referência FIPE única para este câmbio e ano-modelo. Confira os cards da FIPE.'));
-        return card;
-      }
       try {
-        const row = unique[0];
+        const row = unique.length === 1 ? unique[0] : null;
         let history = [];
-        if (row.historyId) {
+        if (row?.historyId) {
           try {
             const historical = await fetch('./api/desvalorizometro',{method:'POST',headers:{'Content-Type':'application/json'},
               body:JSON.stringify({id:row.historyId}),signal:AbortSignal.timeout(10000)});
@@ -822,15 +818,15 @@ function purchaseCard(vehicle,rows) {
             }
           } catch { /* A FIPE atual continua disponível como base. */ }
         }
-        if (!asking.length) card.append(element('p','Sem anúncios comparáveis. Base de cálculo: FIPE atual.'));
+        if (!row && !asking.length) card.append(element('p','Estimativa indicativa da IA, com base nos dados do veículo e conhecimento geral.'));
         if (history.length < 2) card.append(element('p','Histórico insuficiente para avaliar a tendência.'));
         const response = await fetch('./api/sugestao-compra',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({kind,fipe:price(row.value),history,asking,repairs}),signal:AbortSignal.timeout(11000)});
+          body:JSON.stringify({kind,fipe:row ? price(row.value) : null,history,asking,repairs,vehicle:{model:current.model,year:current.year,km:current.km}}),signal:AbortSignal.timeout(11000)});
         if (!response.ok) throw Error();
         const data = await response.json();
         if (!Number.isFinite(data.suggestion)) throw Error();
         card.append(element('p',money.format(data.suggestion),'market-price'),
-          element('p',row.model+' · FIPE '+row.code+' · '+asking.length+' anúncio(s)'),
+          element('p',[row ? row.model+' · FIPE '+row.code : 'Sem FIPE específica para este câmbio',asking.length+' anúncio(s)'].join(' · ')),
           element('p','Base '+money.format(data.base)+' · Reserva '+data.reserve+'% · Reparos '+money.format(repairs)),
           element('p',data.reason));
       } catch {
