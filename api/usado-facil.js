@@ -46,8 +46,6 @@ module.exports = async (req,res) => {
   if ((motor && !/^\d\.\d$/.test(motor)) || (year && !/^\d{4}$/.test(year))) return res.status(400).end();
   const modelYear = String(req.query.anoModelo || year).trim();
   if (modelYear && !/^\d{4}$/.test(modelYear)) return res.status(400).end();
-  const kind = String(req.query.tipoVeiculo || '');
-  if (kind && !['Manual','Automático','Elétrico'].includes(kind)) return res.status(400).end();
   const filters = new URLSearchParams({veiculo:model.toUpperCase()});
   if (motor) filters.set('motorizacao',motor);
   if (year) filters.set('anomin',year);
@@ -86,20 +84,13 @@ module.exports = async (req,res) => {
     });
     if (!cars.length) return res.status(502).json({error:'Os cards extraídos não tinham link e preço verificáveis.'});
     const distinct = [...new Map(cars.map(car => [new URL(car.url).searchParams.get('cod'),car])).values()];
-    const eligible = distinct.filter(car => {
-      if (!kind) return true;
-      const description = [car.title,car.version].join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-      if (kind === 'Manual') return /\b(manual|mecanico|mecanica|mec|mt)\b/i.test(description);
-      if (kind === 'Automático') return /\b(automatico|automatica|aut|at|cvt|dct|automatizado|automatizada)\b/i.test(description);
-      return /\b(eletrico|eletrica|ev|bev)\b/i.test(description) && !/\b(hibrido|hibrida|phev|hev)\b/i.test(description);
-    });
-    const sample = eligible.filter(car => !modelYear || car.modelYear === modelYear).slice(0,15);
+    const sample = distinct.filter(car => !modelYear || car.modelYear === modelYear).slice(0,15);
     const approved = await approvedCodes(key,model,motor,modelYear,sample);
     const prices = sample.filter((_,index)=>approved?.has(index)).map(car=>car.amount);
     const stats = prices.length ? {min:Math.min(...prices),max:Math.max(...prices),
       mean:prices.reduce((sum,price)=>sum+price,0)/prices.length,count:prices.length} : null;
     if (approved !== null) res.setHeader('Cache-Control','s-maxage=300');
-    return res.status(200).json({cars:eligible.slice(0,3),stats,searchUrl:url.href,aiValidated:approved !== null});
+    return res.status(200).json({cars:distinct.slice(0,3),stats,searchUrl:url.href,aiValidated:approved !== null});
   } catch (error) {
     const timedOut = error?.name === 'TimeoutError' || error?.name === 'AbortError';
     return res.status(timedOut ? 504 : 502).json({error:timedOut ? stage+' excedeu o tempo limite da consulta.' : 'Não foi possível concluir a etapa '+stage+'.'});

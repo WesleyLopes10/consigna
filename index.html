@@ -1047,7 +1047,7 @@ function comparableListings(vehicle) {
   model.maxLength = 100;
   const label = element('label','Modelo para buscar');
   label.append(model);
-  if (kind) panel.append(element('p','Filtro da ficha: '+kind));
+
   const status = element('p');
   status.setAttribute('role','status');
   const results = element('div',undefined,'market-references');
@@ -1068,7 +1068,8 @@ function comparableListings(vehicle) {
           status.textContent = 'Busca com os dados disponíveis. Ajuste o modelo se necessário.';
         }
       }
-      const response = await fetch('./api/usado-facil?'+new URLSearchParams({modelo:query,motorizacao:defaults.motor,ano:defaults.year,anoModelo:vehicle.year || '',tipoVeiculo:kind}));
+      if (kind && !query.toLocaleLowerCase('pt-BR').endsWith(' '+kind.toLocaleLowerCase('pt-BR'))) query += ' '+kind;
+      const response = await fetch('./api/usado-facil?'+new URLSearchParams({modelo:query,motorizacao:defaults.motor,ano:defaults.year,anoModelo:vehicle.year || ''}));
       if (response.status === 503) {
         status.textContent = 'Busca ainda não configurada no servidor.';
         return;
@@ -1086,7 +1087,7 @@ function comparableListings(vehicle) {
       }
       const data = await response.json();
       if (!Array.isArray(data.cars)) throw Error();
-      await saveMarketLookup(vehicle,'usedMarketLookup',{...data,query,motor:defaults.motor,year:defaults.year,kind});
+      await saveMarketLookup(vehicle,'usedMarketLookup',{...data,query,motor:defaults.motor,year:defaults.year,kind,searchVersion:2});
       display(data,query,defaults.motor,defaults.year);
     } catch {
       status.textContent = 'Não foi possível buscar ou salvar os anúncios. Tente novamente.';
@@ -1131,11 +1132,11 @@ function comparableListings(vehicle) {
         card.append(link);
         results.append(card);
       });
-      status.textContent = cars.length ? '' : kind ? 'Nenhum anúncio com indicação de '+kind.toLowerCase()+' nos resultados.' : 'Nenhum anúncio encontrado.';
+      status.textContent = cars.length ? '' : 'Nenhum anúncio encontrado.';
   }
   panel.append(label,lookup,status,results);
   const cached = vehicle.usedMarketLookup;
-  if (cached?.plate === vehicle.plate && (cached.data?.kind || '') === kind && Array.isArray(cached?.data?.cars)) {
+  if (cached?.data?.searchVersion === 2 && cached.plate === vehicle.plate && (cached.data?.kind || '') === kind && Array.isArray(cached?.data?.cars)) {
     const {query,motor,year} = cached.data;
     model.value = defaults.model = query;
     defaults.motor = motor;
