@@ -801,25 +801,29 @@ function purchaseCard(vehicle,rows) {
       const card = element('div',undefined,'market-card');
       card.append(element('h4',kind));
       const year = String(current.year || '').trim();
-      const matches = fipe.filter(row=>kindOf(row.model)===kind && (!year || String(row.year)===year) && row.historyId && price(row.value)>0);
+      const matches = fipe.filter(row=>kindOf(row.model)===kind && (!year || String(row.year)===year) && price(row.value)>0);
       const unique = [...new Map(matches.map(row=>[row.code,row])).values()];
       const asking = ads.filter(ad=>kindOf([ad.title,ad.version].join(' '))===kind &&
         (!year || String(ad.year || '').match(/\d{4}/g)?.at(-1)===year) && Number.isFinite(ad.amount) && ad.amount>0).map(ad=>ad.amount);
-      if (unique.length !== 1 || !asking.length) {
-        card.append(element('p','Sem uma referência FIPE única e anúncios do mesmo câmbio e ano-modelo para calcular.'));
+      if (unique.length !== 1) {
+        card.append(element('p','Não há uma referência FIPE única para este câmbio e ano-modelo. Confira os cards da FIPE.'));
         return card;
       }
       try {
         const row = unique[0];
-        const historical = await fetch('./api/desvalorizometro',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({id:row.historyId}),signal:AbortSignal.timeout(10000)});
-        if (!historical.ok) throw Error();
-        const {points} = await historical.json();
-        const history = points.slice(-12).map(([,amount])=>amount);
-        if (history.length < 2) {
-          card.append(element('p','Histórico FIPE insuficiente para analisar.'));
-          return card;
+        let history = [];
+        if (row.historyId) {
+          try {
+            const historical = await fetch('./api/desvalorizometro',{method:'POST',headers:{'Content-Type':'application/json'},
+              body:JSON.stringify({id:row.historyId}),signal:AbortSignal.timeout(10000)});
+            if (historical.ok) {
+              const {points} = await historical.json();
+              history = points.slice(-12).map(([,amount])=>amount);
+            }
+          } catch { /* A FIPE atual continua disponível como base. */ }
         }
+        if (!asking.length) card.append(element('p','Sem anúncios comparáveis. Base de cálculo: FIPE atual.'));
+        if (history.length < 2) card.append(element('p','Histórico insuficiente para avaliar a tendência.'));
         const response = await fetch('./api/sugestao-compra',{method:'POST',headers:{'Content-Type':'application/json'},
           body:JSON.stringify({kind,fipe:price(row.value),history,asking,repairs}),signal:AbortSignal.timeout(11000)});
         if (!response.ok) throw Error();
