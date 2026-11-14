@@ -821,16 +821,16 @@ function purchaseCard(vehicle,rows) {
         if (!row && !asking.length) card.append(element('p','Estimativa indicativa da IA, com base nos dados do veículo e conhecimento geral.'));
         if (history.length < 2) card.append(element('p','Histórico insuficiente para avaliar a tendência.'));
         const response = await fetch('./api/sugestao-compra',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({kind,fipe:row ? price(row.value) : null,history,asking,repairs,vehicle:{model:current.model,year:current.year,km:current.km}}),signal:AbortSignal.timeout(11000)});
-        if (!response.ok) throw Error();
+          body:JSON.stringify({kind,fipe:row ? price(row.value) : null,history,asking,repairs,vehicle:{model:current.model,year:current.year,km:current.km}}),signal:AbortSignal.timeout(25000)});
+        if (!response.ok) throw Error((await response.json().catch(()=>({}))).error || 'Falha na consulta de compra.');
         const data = await response.json();
         if (!Number.isFinite(data.suggestion)) throw Error();
         card.append(element('p',money.format(data.suggestion),'market-price'),
           element('p',[row ? row.model+' · FIPE '+row.code : 'Sem FIPE específica para este câmbio',asking.length+' anúncio(s)'].join(' · ')),
           element('p','Base '+money.format(data.base)+' · Reserva '+data.reserve+'% · Reparos '+money.format(repairs)),
           element('p',data.reason));
-      } catch {
-        card.append(element('p','Não foi possível concluir a análise desta versão. Tente novamente.'));
+      } catch (error) {
+        card.append(element('p',error.message || 'Não foi possível concluir a análise desta versão.'));
       }
       return card;
     }));
