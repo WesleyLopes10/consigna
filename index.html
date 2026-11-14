@@ -1221,28 +1221,6 @@ function render() {
     return vehicle.evaluated && !vehicle.unavailable;
   })
     .sort((a,b) => (b.evaluated || b.created || 0)-(a.evaluated || a.created || 0));
-  if (page === 'pending' && master()) {
-    const intake = element('div',undefined,'intake');
-    const label = element('label','Importar ficha do cliente');
-    const file = element('input');
-    Object.assign(file,{type:'file',accept:'.json,application/json'});
-    file.onchange = async () => {
-      if (!master() || !file.files[0]) return;
-      file.disabled = true;
-      try {
-        await importAssessment(file.files[0]);
-        render();
-        notice('Pré-avaliação importada para Pendentes.');
-      } catch (error) {
-        notice(error?.name === 'ConstraintError' ? 'Esta ficha já foi importada.' : 'Não foi possível importar. Confira o arquivo recebido.');
-        file.value = '';
-        file.disabled = false;
-      }
-    };
-    label.append(file);
-    intake.append(label);
-    content.append(intake);
-  }
   if (master() && page === 'feed') {
     const summary = element('div',undefined,'master-summary');
     const metrics = [
