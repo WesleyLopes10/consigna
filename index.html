@@ -716,7 +716,33 @@ function media(blob, urls) {
   return url;
 }
 function release(urls) { urls.splice(0).forEach(url => URL.revokeObjectURL(url)); }
+const pageRoutes = {home:'',feed:'feed',pending:'pendentes',unavailable:'retirados',register:'pre-avaliacoes',evaluation:'avaliar'};
+function updateRoute(next,vehicleId) {
+  const url = new URL(location.href);
+  url.search = '';
+  if (pageRoutes[next]) url.searchParams.set('pagina',pageRoutes[next]);
+  if (vehicleId) url.searchParams.set('veiculo',vehicleId);
+  if (url.href !== location.href) history.pushState(null,'',url);
+}
+function restoreRoute() {
+  const params = new URLSearchParams(location.search);
+  const route = Object.keys(pageRoutes).find(key => pageRoutes[key] === params.get('pagina')) || 'home';
+  const role = ['pending','unavailable','register','evaluation'].includes(route) ? 'master' :
+    route === 'home' ? 'home' : (master() ? 'master' : 'viewer');
+  $('#role').value = role;
+  if (page === 'evaluation') release(dialogUrls);
+  if ($('dialog').open) $('dialog').close();
+  notice('');
+  page = route === 'evaluation' ? 'pending' : route;
+  render();
+  if (route === 'evaluation') {
+    const vehicle = vehicles.find(item => item.id === params.get('veiculo') && !item.evaluated && item.answers?.length);
+    if (vehicle) details(vehicle);
+    else notice('Avaliação pendente não encontrada neste navegador.');
+  }
+}
 function show(next) {
+  updateRoute(next);
   if (page === 'evaluation') release(dialogUrls);
   page = next;
   notice('');
@@ -794,6 +820,7 @@ function details(vehicle) {
   const evaluating = master() && !vehicle.evaluated && Boolean(vehicle.answers?.length);
   const container = evaluating ? element('section',undefined,'evaluation-page') : $('#detail');
   if (evaluating) {
+    updateRoute('evaluation',vehicle.id);
     page = 'evaluation';
     notice('');
     release(mediaUrls);
@@ -1030,7 +1057,11 @@ $('#role').onchange = () => {
   show($('#role').value === 'home' ? 'home' : 'feed');
 };
 if (new URLSearchParams(location.search).has("pre-avaliacao")) customerForm();
-else readVehicles().then(result => { vehicles = result; render(); }).catch(() => notice('O armazenamento local está indisponível.'));
+else readVehicles().then(result => {
+  vehicles = result;
+  restoreRoute();
+  window.addEventListener('popstate',restoreRoute);
+}).catch(() => notice('O armazenamento local está indisponível.'));
 </script></body></html>
 
 
