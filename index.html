@@ -884,11 +884,17 @@ function comparableListings(vehicle) {
         if (car.photo) {
           const image = element('img',undefined,'market-listing-photo');
           Object.assign(image,{src:car.photo,alt:car.title,loading:'lazy',referrerPolicy:'no-referrer'});
-          image.onerror = () => image.remove();
+          image.onerror = () => image.replaceWith(element('p','Foto indisponível no anúncio'));
           card.append(image);
+        } else {
+          card.append(element('p','Foto indisponível no anúncio'));
         }
-        card.append(element('strong',car.title),element('p',money.format(car.amount),'market-price'),
-          element('p',[car.year,car.mileage].filter(Boolean).join(' · ')),link);
+        card.append(element('strong',car.title));
+        if (car.version && car.version !== car.title) card.append(element('p',car.version));
+        card.append(element('p',money.format(car.amount),'market-price'),
+          element('p',[car.year,car.mileage].filter(Boolean).join(' · ')));
+        if (car.dealer || car.location) card.append(element('p',[car.dealer,car.location].filter(Boolean).join(' · ')));
+        card.append(link);
         results.append(card);
       });
       status.textContent = cars.length ? (average == null ? 'Menos de três comparáveis. Média indisponível.' : 'Média dos três menores preços anunciados na página consultada. Confira versão, km e estado antes de definir o preço.') : 'Nenhum anúncio encontrado.';
