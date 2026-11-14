@@ -1,23 +1,50 @@
 const money = new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
 const fields = ['marca','modelo','ano','ano_fabricacao','ano_modelo','cor','municipio','uf','segmento','sub_segmento','cilindradas','combustivel','carroceria','tipo_veiculo','caixa_cambio'];
+async function fallback(placa,res,status,error,cadastro) {
+  const token = process.env.API_PLACAS_TOKEN?.trim();
+  if (!token) return res.status(status).json({error});
+  try {
+    const response = await fetch('https://wdapi2.com.br/consulta/'+placa+'/'+encodeURIComponent(token),
+      {signal:AbortSignal.timeout(6500),redirect:'error'});
+    if (response.status === 406) return res.status(404).json({error:'Placa sem resultado na API reserva.'});
+    if (!response.ok) return res.status(response.status === 429 ? 429 : 502).json({error:'API reserva indisponível.'});
+    const data = await response.json();
+    const brand = String(data.MARCA || data.marca || '').trim();
+    const model = String(data.MODELO || data.modelo || '').trim();
+    const extra = data.extra || {};
+    const year = [data.anoModelo,extra.ano_modelo].map(Number).find(value => Number.isInteger(value) && value >= 1886 && value <= 2100);
+    if (!model && !year) return res.status(404).json({error:'Dados indisponíveis na API reserva.'});
+    const specs = {ano:extra.ano_fabricacao || data.ano,ano_fabricacao:extra.ano_fabricacao,
+      cor:data.cor,uf:data.uf,municipio:data.municipio,cilindradas:extra.cilindradas,combustivel:extra.combustivel};
+    const fipe = cadastro ? [] : (Array.isArray(data.fipe?.dados) ? data.fipe.dados : [])
+      .filter(row => typeof row?.texto_valor === 'string' && row.texto_valor.trim())
+      .map(row => ({value:row.texto_valor,model:row.texto_modelo,brand:row.texto_marca,year:row.ano_modelo,
+        code:row.codigo_fipe,reference:row.mes_referencia,fuel:row.combustivel,score:Number(row.score)||0}))
+      .sort((a,b)=>b.score-a.score);
+    return res.status(200).json({brand,model,year,specs,fipe,lookupMode:cadastro ? 'cadastro' : 'fipe',
+      provider:'API Placas',warning:'Consulta pela API reserva. Histórico do Desvalorizômetro indisponível nesta consulta.'});
+  } catch {
+    return res.status(502).json({error:'API reserva indisponível.'});
+  }
+}
 module.exports = async function handler(req,res) {
   res.setHeader('Cache-Control','no-store');
   if (req.method !== 'GET') return res.status(405).json({error:'Método inválido.'});
   const placa = String(req.query.placa || '').toUpperCase();
   if (!/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(placa)) return res.status(400).json({error:'Placa inválida.'});
   const token = process.env.PLACA_FIPE_TOKEN?.trim();
-  if (!token) return res.status(503).json({error:'Configure PLACA_FIPE_TOKEN no servidor.'});
   const cadastro = req.query.modo === 'cadastro';
+  if (!token) return fallback(placa,res,503,'Configure um token de consulta no servidor.',cadastro);
   const endpoint = cadastro ? 'getplaca' : 'getplacafipe';
   try {
     const response = await fetch('https://api.placafipe.com.br/'+endpoint,{
       method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({placa,token}),
       signal:AbortSignal.timeout(6500),redirect:'error'
     });
-    if (response.status === 429) return res.status(429).json({error:'Limite de consultas atingido.'});
+    if ([401,402,403,429].includes(response.status)) return fallback(placa,res,response.status,'Token sem acesso ou limite de consultas atingido.',cadastro);
     const data = await response.json();
     const code = Number(data.codigo);
-    if (code === 4862 || code === 3974) return res.status(503).json({error:'Token sem acesso ou limite de consultas atingido.'});
+    if (code === 4862 || code === 3974) return fallback(placa,res,503,'Token sem acesso ou limite de consultas atingido.',cadastro);
     if (code === 759 || code === 167) return res.status(404).json({error:'Veículo não encontrado.'});
     if (!response.ok || ![1,22,312,499].includes(code)) return res.status(502).json({error:'Consulta indisponível.'});
     let info = data.informacoes_veiculo || {};
