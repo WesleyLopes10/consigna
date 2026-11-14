@@ -820,6 +820,47 @@ async function savePlateLookup(vehicle,data) {
   });
   vehicles = await readVehicles();
 }
+function comparableListings(vehicle) {
+  const panel = element('section',undefined,'assessment-panel');
+  panel.append(element('h3','Anúncios no Usado Fácil'));
+  const model = element('input');
+  model.value = vehicle.plateLookup?.data?.model || vehicle.model;
+  model.maxLength = 100;
+  const label = element('label','Modelo para buscar');
+  label.append(model);
+  const status = element('p');
+  status.setAttribute('role','status');
+  const results = element('div',undefined,'market-references');
+  const lookup = button('Buscar anúncios',async () => {
+    const query = model.value.trim();
+    if (!query) { model.focus(); return; }
+    lookup.disabled = true;
+    status.textContent = 'Buscando anúncios…';
+    results.replaceChildren();
+    try {
+      const response = await fetch('./api/usado-facil?modelo='+encodeURIComponent(query));
+      if (response.status === 503) {
+        status.textContent = 'Busca ainda não configurada no servidor.';
+        return;
+      }
+      if (!response.ok) throw Error();
+      const {cars} = await response.json();
+      cars.forEach(car => {
+        const card = element('article',undefined,'market-card');
+        const link = element('a','Ver anúncio');
+        Object.assign(link,{href:car.url,target:'_blank',rel:'noopener noreferrer'});
+        card.append(element('strong',car.title),element('p',car.price || 'Preço não informado','market-price'),
+          element('p',[car.year,car.mileage].filter(Boolean).join(' · ')),link);
+        results.append(card);
+      });
+      status.textContent = cars.length ? 'Preços anunciados no Usado Fácil.' : 'Nenhum anúncio encontrado.';
+    } catch {
+      status.textContent = 'Não foi possível buscar os anúncios. Tente novamente.';
+    } finally { lookup.disabled = false; }
+  });
+  panel.append(label,lookup,status,results);
+  return panel;
+}
 function marketCards(vehicle,container) {
   const panel = element('section',undefined,'assessment-panel market-panel');
   const heading = element('h3','Tabela FIPE');
@@ -910,6 +951,7 @@ function details(vehicle) {
     info.append(element('h3','Dados do veículo e contato'),list);
     container.append(info);
     if (vehicle.plate) marketCards(vehicle,container);
+    container.append(comparableListings(vehicle));
   }
   if (!evaluating) container.append(element('p',description(vehicle)));
   const photos = vehicle.photos?.length ? vehicle.photos : vehicle.photo ? [vehicle.photo] : [];
