@@ -963,17 +963,25 @@ function marketCards(vehicle,container) {
   });
   function display(data) {
     results.replaceChildren();
-    const fipe = data.fipe || [];
+    const entries = Array.isArray(data.fipe) ? data.fipe : [];
+    const comfort = /hb20s/i.test(data.model || vehicle.model) &&
+      (/comfor/i.test([data.model,vehicle.model].join(' ')) || entries.some(row => ['0152188','0152170'].includes(String(row.code).replace(/\D/g,''))));
+    const fipe = comfort ? ['0152188','0152170'].flatMap(code => {
+      const match = entries.find(row => String(row.code).replace(/\D/g,'') === code);
+      return match ? [match] : [];
+    }) : entries;
     const references = element('div',undefined,'market-references');
     if (!fipe.length) results.append(element('p','A API não retornou valor FIPE para esta placa.'));
     fipe.forEach((row,index) => {
       const card = element('article',undefined,'market-card');
-      if (index === 0) card.append(element('strong','Melhor correspondência'));
+      if (comfort) card.append(element('strong',String(row.code).replace(/\D/g,'') === '0152188' ? 'Câmbio manual' : 'Câmbio automático'));
+      else if (index === 0) card.append(element('strong','Melhor correspondência'));
       card.append(element('p',row.value,'market-price'),element('p',row.model || data.model),
         element('p',[row.brand,row.year,row.fuel,row.code,row.reference].filter(Boolean).join(' · ')));
       references.append(card);
     });
     if (references.childElementCount) results.append(references);
+    if (comfort && fipe.length < 2) results.append(element('p','A API ainda não retornou todos os códigos esperados (015218-8 e 015217-0).'));
     const labels = {brand:'Marca',model:'Modelo',year:'Ano-modelo',SUBMODELO:'Submodelo',VERSAO:'Versão',ano:'Ano informado',
       cor:'Cor',municipio:'Município',uf:'UF',origem:'Origem',situacao:'Situação',codigoSituacao:'Código da situação',data:'Data da base',
       placa_alternativa:'Placa alternativa',ano_fabricacao:'Ano de fabricação',ano_modelo:'Ano-modelo (base complementar)',
