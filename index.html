@@ -798,18 +798,27 @@ function purchaseCard(vehicle,rows) {
     result.textContent = 'Analisando FIPE, histórico e anúncios…';
     const current = vehicles.find(item=>item.id===vehicle.id) || vehicle;
     const fipe = current.plateLookup?.data?.fipe || [];
-    const ads = current.usedMarketLookup?.data?.cars || [];
+    const market = current.usedMarketLookup?.plate === current.plate ? current.usedMarketLookup.data : null;
+    const ads = market?.cars || [];
     const repairs = rows.reduce((sum,row)=>sum+(row.low+row.high)/2,0);
     const cards = await Promise.all(['Manual','Automático'].map(async kind => {
       const card = element('div',undefined,'market-card');
       card.append(element('h4',kind));
       const year = String(current.year || '').trim();
-      const matches = fipe.filter(row=>kindOf(row.model)===kind && (!year || String(row.year)===year) && price(row.value)>0);
-      const unique = [...new Map(matches.map(row=>[row.code,row])).values()];
-      const asking = ads.filter(ad=>kindOf([ad.title,ad.version].join(' '))===kind &&
+      const matches = fipe.filter(row => {
+        const code = String(row.code || '').replace(/\D/g,'');
+        const type = code === '0152188' ? 'Manual' : code === '0152170' ? 'Automático' : kindOf(row.model);
+        return type === kind && price(row.value)>0;
+      });
+      const exact = matches.filter(row => String(row.year) === year);
+      const unique = [...new Map((exact.length ? exact : matches).map(row=>[row.code || row.model,row])).values()];
+      const matchingAsks = ads.filter(ad=>kindOf([ad.title,ad.version].join(' '))===kind &&
         (!year || String(ad.year || '').match(/\d{4}/g)?.at(-1)===year) && Number.isFinite(ad.amount) && ad.amount>0).map(ad=>ad.amount);
+      const marketMean = market?.kind === kind && Number.isFinite(market.stats?.mean) && market.stats.mean > 0
+        ? market.stats.mean : null;
+      const asking = marketMean === null ? matchingAsks : [marketMean];
       try {
-        const row = unique.length === 1 ? unique[0] : null;
+        const row = unique[0] || null;
         let history = [];
         if (row?.historyId) {
           try {
@@ -829,7 +838,7 @@ function purchaseCard(vehicle,rows) {
           } catch { /* Continue with available references. */ }
         }
         const response = await fetch('./api/sugestao-compra',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({kind,fipe:row ? price(row.value) : null,history,asking,repairs,projection,vehicle:{model:current.model,year:current.year,km:current.km}}),signal:AbortSignal.timeout(25000)});
+          body:JSON.stringify({kind,fipe:row ? price(row.value) : null,history,asking,repairs,projection,vehicle:{model:[current.model,row?.model && 'Referência FIPE: '+row.model+' ('+row.year+')'].filter(Boolean).join(' · ').slice(0,150),year:current.year,km:current.km}}),signal:AbortSignal.timeout(25000)});
         if (!response.ok) throw Error((await response.json().catch(()=>({}))).error || 'Falha na consulta de compra.');
         const data = await response.json();
         if (!Array.isArray(data.scenarios)) throw Error();
