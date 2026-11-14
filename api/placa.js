@@ -7,8 +7,10 @@ module.exports = async function handler(req,res) {
   if (!/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(placa)) return res.status(400).json({error:'Placa inválida.'});
   const token = process.env.PLACA_FIPE_TOKEN?.trim();
   if (!token) return res.status(503).json({error:'Configure PLACA_FIPE_TOKEN no servidor.'});
+  const cadastro = req.query.modo === 'cadastro';
+  const endpoint = cadastro ? 'getplaca' : 'getplacafipe';
   try {
-    const response = await fetch('https://api.placafipe.com.br/getplacafipe',{
+    const response = await fetch('https://api.placafipe.com.br/'+endpoint,{
       method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({placa,token}),
       signal:AbortSignal.timeout(7000),redirect:'error'
     });
@@ -33,7 +35,7 @@ module.exports = async function handler(req,res) {
         historyId:row.desvalorizometro,similarity:Number(row.similaridade)||0}];
     }).sort((a,b) => b.score-a.score || b.similarity-a.similarity);
     return res.status(200).json({brand,model,year:Number.isInteger(year)&&year>=1886&&year<=2100 ? year : undefined,
-      specs,fipe,provider:'Placa FIPE',warning:code===22 ? 'Os valores FIPE retornados são de outros combustíveis. Confira antes de usar.' : undefined});
+      specs,fipe,lookupMode:cadastro ? 'cadastro' : 'fipe',provider:'Placa FIPE',warning:code===22 ? 'Os valores FIPE retornados são de outros combustíveis. Confira antes de usar.' : undefined});
   } catch {
     return res.status(502).json({error:'Consulta indisponível.'});
   }
