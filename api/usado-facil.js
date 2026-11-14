@@ -27,7 +27,7 @@ module.exports = async (req,res) => {
     const cards = [...html.matchAll(/<a\b[^>]*href=["'][^"']*detalhes\.asp\?[^"']*\bcod=[^"']+["'][^>]*>/gi)];
     if (!cards.length) return res.status(502).json({error:'A página não entregou anúncios no HTML.'});
     const snippets = cards.slice(0,30).map((match,index) => html.slice(match.index,
-      Math.min(cards[index+1]?.index ?? html.length,match.index+4500)).replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,''));
+      Math.min(cards[index+1]?.index ?? html.length,match.index+3800)).replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').replace(/\s+/g,' '));
     const properties = Object.fromEntries(['title','price','year','mileage','photo','version','dealer','location','url'].map(field => [field,{type:'string'}]));
     stage = 'OpenAI';
     const response = await fetch('https://api.openai.com/v1/responses',{
@@ -42,8 +42,12 @@ module.exports = async (req,res) => {
     });
     if (!response.ok) return res.status(502).json({error:'OpenAI não conseguiu tratar os anúncios (HTTP '+response.status+').'});
     const body = await response.json();
+    if (body.status === 'incomplete') return res.status(502).json({error:'A OpenAI interrompeu a extração antes de concluir.'});
     const output = body.output?.flatMap(item => item.content || []).find(item => item.type === 'output_text');
-    const payload = JSON.parse(output?.text);
+    if (!output?.text) return res.status(502).json({error:'A OpenAI não devolveu uma lista de anúncios.'});
+    let payload;
+    try { payload = JSON.parse(output.text); }
+    catch { return res.status(502).json({error:'A OpenAI devolveu dados em formato inválido.'}); }
     if (!Array.isArray(payload.cars)) return res.status(502).end();
     const cars = payload.cars.flatMap(row => {
       try {
@@ -72,5 +76,8 @@ module.exports = async (req,res) => {
     const average = ranked.length === 3 ? ranked.reduce((sum,car) => sum+car.amount,0)/3 : null;
     res.setHeader('Cache-Control','s-maxage=300');
     return res.status(200).json({cars:ranked,average,searchUrl:url.href});
-  } catch { return res.status(502).json({error:'Falha na etapa '+stage+'.'}); }
+  } catch (error) {
+    const timedOut = error?.name === 'TimeoutError' || error?.name === 'AbortError';
+    return res.status(timedOut ? 504 : 502).json({error:timedOut ? stage+' excedeu o tempo limite da consulta.' : 'Não foi possível concluir a etapa '+stage+'.'});
+  }
 };
