@@ -30,7 +30,7 @@ module.exports = async function handler(req,res) {
       if (!Number.isFinite(amount) || amount <= 0) return [];
       return [{value:money.format(amount),model:row.modelo,brand:row.marca,year:row.ano_modelo,
         code:row.codigo_fipe,reference:row.mes_referencia,fuel:row.combustivel,score:Number(row.correspondencia)||0,
-        similarity:Number(row.similaridade)||0}];
+        historyId:row.desvalorizometro,similarity:Number(row.similaridade)||0}];
     }).sort((a,b) => b.score-a.score || b.similarity-a.similarity);
     return res.status(200).json({brand,model,year:Number.isInteger(year)&&year>=1886&&year<=2100 ? year : undefined,
       specs,fipe,provider:'Placa FIPE',warning:code===22 ? 'Os valores FIPE retornados são de outros combustíveis. Confira antes de usar.' : undefined});
