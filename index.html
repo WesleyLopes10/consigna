@@ -1061,10 +1061,10 @@ function fipeHistory(row) {
   status.setAttribute('role','status');
   const chart = element('div');
   let points;
-  const action = button('Ver desvalorização',async () => {
+  const action = button('Abrir Desvalorizômetro',async () => {
     if (points) {
       chart.hidden = !chart.hidden;
-      action.textContent = chart.hidden ? 'Ver desvalorização' : 'Ocultar desvalorização';
+      action.textContent = chart.hidden ? 'Abrir Desvalorizômetro' : 'Ocultar desvalorização';
       action.setAttribute('aria-expanded',String(!chart.hidden));
       return;
     }
@@ -1151,7 +1151,7 @@ function marketCards(vehicle,container) {
   const status = element('p');
   status.setAttribute('role','status');
   const results = element('div');
-  const lookup = button('Consultar FIPE e dados da placa',async () => {
+  const lookup = button('Consultar Placa FIPE',async () => {
     lookup.disabled = true;
     status.textContent = 'Consultando…';
     try {
@@ -1198,6 +1198,7 @@ function marketCards(vehicle,container) {
       value.append(element('span','Valor FIPE'),element('strong',row.value));
       card.append(metadata,value);
       if (row.historyId) card.append(fipeHistory(row));
+      else card.append(element('p','Histórico indisponível para esta consulta. Atualize pela Placa FIPE.'));
       references.append(card);
     });
     if (references.childElementCount) results.append(references);
@@ -1222,7 +1223,7 @@ function marketCards(vehicle,container) {
   panel.append(toolbar,status,results);
   container.append(panel);
   if (vehicle.plateLookup?.plate === vehicle.plate && vehicle.plateLookup.data?.lookupMode !== 'cadastro') display(vehicle.plateLookup.data,vehicle.plateLookup.consultedAt);
-  else status.textContent = 'Consulte a placa para carregar a FIPE e os dados do veículo.';
+  else status.textContent = 'Consulte a Placa FIPE para carregar os valores e abrir o Desvalorizômetro por versão.';
 }
 
 function details(vehicle) {
