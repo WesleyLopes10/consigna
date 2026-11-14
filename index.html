@@ -352,6 +352,10 @@ dialog .media,.vehicle-gallery .media,.market-listing-photo{background:#edf1f7;b
 <label>Modelo<input name="model" list="pre-models" maxlength="79" placeholder="Digite ou escolha o modelo" required></label><datalist id="pre-models"></datalist>
 <label>Ano de fabricação<input name="reportedYear" type="text" readonly placeholder="Consulte a placa"></label>
 <label>Ano-modelo<input name="year" type="number" min="1886" max="2100" required></label>
+<label>Categoria do veículo<input name="fipeType" list="fipe-types" maxlength="100"></label>
+<datalist id="fipe-types"></datalist>
+<label>Combustível<input name="fipeFuel" list="fipe-fuels" maxlength="100"></label>
+<datalist id="fipe-fuels"></datalist>
 <div class="vehicle-kind" role="group" aria-labelledby="vehicle-kind-label"><strong id="vehicle-kind-label">Tipo do veículo · Obrigatório</strong>
 <div class="vehicle-kind-options">
 <label><input type="radio" name="vehicleKind" value="Automático" required> Automático</label>
@@ -479,6 +483,18 @@ function customerForm() {
   $('#content').append($('#pre-template').content.cloneNode(true));
   const form = $('#pre-form');
   configureCustomerFields(form);
+  let catalogRequested = false;
+  form.addEventListener('focusin',async event => {
+    if (catalogRequested || !['plate','fipeType','fipeFuel'].includes(event.target.name)) return;
+    catalogRequested = true;
+    try {
+      const response = await fetch('./api/fipe-catalogos',{signal:AbortSignal.timeout(9000)});
+      if (!response.ok) throw Error();
+      const {types,fuels} = await response.json();
+      $('#fipe-types').replaceChildren(...types.map(item => new Option(item.label,item.label)));
+      $('#fipe-fuels').replaceChildren(...fuels.map(item => new Option(item.label,item.label)));
+    } catch { catalogRequested = false; }
+  });
   const {plate,brand,model,year} = form.elements;
   let plateLookup;
   plate.addEventListener('input',() => { form.elements.reportedYear.value = ''; });
@@ -505,6 +521,8 @@ function customerForm() {
       if (data.model) model.value = data.model;
       form.elements.reportedYear.value = data.specs?.ano_fabricacao || data.specs?.ano || '';
       if (data.year) year.value = data.year;
+      if (!form.elements.fipeFuel.value && data.specs?.combustivel) form.elements.fipeFuel.value = data.specs.combustivel;
+      if (!form.elements.fipeType.value && data.specs?.tipo_veiculo) form.elements.fipeType.value = data.specs.tipo_veiculo;
       lookupStatus.textContent = 'Confira os dados e complete os campos que faltarem.';
     } catch {
       lookupStatus.textContent = 'Não foi possível consultar a placa. Preencha os dados manualmente.';
@@ -615,6 +633,8 @@ function customerForm() {
       report.model = data.get('brand').trim()+' '+report.model;
       report.plate = report.plate.toUpperCase();
       report.vehicleKind = data.get('vehicleKind');
+      report.fipeType = data.get('fipeType').trim();
+      report.fipeFuel = data.get('fipeFuel').trim();
       report.reportedYear = data.get('reportedYear');
       if (plateLookup?.plate === report.plate) report.plateLookup = plateLookup;
       Object.assign(report,{id:crypto.randomUUID(),created:Date.now(),photo:photos[0],photos,video,
@@ -1124,7 +1144,7 @@ function details(vehicle) {
     const info = element('section',undefined,'assessment-panel assessment-info');
     const list = element('ul');
     const specs = [['Ano (fabricação/modelo)',vehicleYears(vehicle)],['Quilometragem',number.format(vehicle.km)+' km'],
-      ['Versão',vehicle.trim],['Tipo informado',vehicle.vehicleKind],['Placa',vehicle.plate],['Cidade',vehicle.city],
+      ['Versão',vehicle.trim],['Tipo informado',vehicle.vehicleKind],['Categoria',vehicle.fipeType],['Combustível informado',vehicle.fipeFuel],['Placa',vehicle.plate],['Cidade',vehicle.city],
       ['Proprietário',vehicle.owner],['WhatsApp',vehicle.phone]];
     specs.forEach(([name,value]) => {
       if (!value) return;
