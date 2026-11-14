@@ -280,7 +280,7 @@ body[data-profile=master] .master-vehicles>.card{border-color:#e1e4ec;box-shadow
 <label>Placa<input name="plate" maxlength="7" pattern="[A-Za-z]{3}[0-9][A-Za-z0-9][0-9]{2}" placeholder="ABC1D23" autocapitalize="characters" required></label>
 <label>Marca<input name="brand" list="pre-brands" maxlength="40" placeholder="Digite ou escolha a marca" required></label><datalist id="pre-brands"></datalist>
 <label>Modelo<input name="model" list="pre-models" maxlength="79" placeholder="Digite ou escolha o modelo" required></label><datalist id="pre-models"></datalist>
-<label>Ano informado pela consulta<input name="reportedYear" type="text" readonly placeholder="Consulte a placa"></label>
+<label>Ano de fabricação<input name="reportedYear" type="text" readonly placeholder="Consulte a placa"></label>
 <label>Ano-modelo<input name="year" type="number" min="1886" max="2100" required></label>
 <div class="vehicle-kind" role="group" aria-labelledby="vehicle-kind-label"><strong id="vehicle-kind-label">Tipo do veículo · Obrigatório</strong>
 <div class="vehicle-kind-options">
@@ -433,7 +433,7 @@ function customerForm() {
         brand.dispatchEvent(new Event('input'));
       }
       if (data.model) model.value = data.model;
-      form.elements.reportedYear.value = data.specs?.ano || data.year || '';
+      form.elements.reportedYear.value = data.specs?.ano_fabricacao || data.specs?.ano || '';
       if (data.year) year.value = data.year;
       lookupStatus.textContent = 'Confira os dados e complete os campos que faltarem.';
     } catch {
@@ -641,7 +641,7 @@ async function repairPdf(report) {
   const model = Array.from(report.model || '');
   stream += text(model.slice(0,72).join(''),36,710);
   stream += text(model.slice(72).join(''),36,695);
-  stream += text([report.code,report.year,report.plate,number.format(report.km)+' km'].filter(Boolean).join(' | '),36,676);
+  stream += text([report.code,vehicleYears(report),report.plate,number.format(report.km)+' km'].filter(Boolean).join(' | '),36,676);
   rows.forEach((row,index) => {
     const y = 576-index*23;
     stream += text(row.name,36,y,10)+text(row.pending ? row.condition+' - conferir' : row.condition,270,y,10);
@@ -815,8 +815,15 @@ function photo(vehicle, urls) {
   image.alt = vehicle.model;
   return image;
 }
+function vehicleYears(vehicle) {
+  const lookup = vehicle.plateLookup?.data;
+  const valid = value => /^\d{4}$/.test(String(value ?? '').trim());
+  const manufacture = [lookup?.specs?.ano_fabricacao,lookup?.specs?.ano,vehicle.reportedYear].find(valid);
+  const model = [vehicle.year,lookup?.year,lookup?.specs?.ano_modelo].find(valid);
+  return [manufacture,model].filter(valid).map(value => String(value).trim()).join('/');
+}
 function description(vehicle) {
-  return [vehicle.trim,vehicle.year,number.format(vehicle.km)+' km'].filter(Boolean).join(' · ');
+  return [vehicle.trim,vehicleYears(vehicle),number.format(vehicle.km)+' km'].filter(Boolean).join(' · ');
 }
 
 async function savePlateLookup(vehicle,data) {
@@ -991,14 +998,14 @@ function marketCards(vehicle,container) {
     });
     if (references.childElementCount) results.append(references);
     if (comfort && fipe.length < 2) results.append(element('p','A API ainda não retornou todos os códigos esperados (015218-8 e 015217-0).'));
-    const labels = {brand:'Marca',model:'Modelo',year:'Ano-modelo',SUBMODELO:'Submodelo',VERSAO:'Versão',ano:'Ano informado',
+    const labels = {brand:'Marca',model:'Modelo',year:'Ano (fabricação/modelo)',SUBMODELO:'Submodelo',VERSAO:'Versão',ano:'Ano informado',
       cor:'Cor',municipio:'Município',uf:'UF',origem:'Origem',situacao:'Situação',codigoSituacao:'Código da situação',data:'Data da base',
       placa_alternativa:'Placa alternativa',ano_fabricacao:'Ano de fabricação',ano_modelo:'Ano-modelo (base complementar)',
       combustivel:'Combustível',cilindradas:'Cilindradas',caixa_cambio:'Câmbio',carroceria:'Carroceria',eixos:'Eixos',especie:'Espécie',
       grupo:'Grupo',nacionalidade:'Nacionalidade',peso_bruto_total:'Peso bruto total',quantidade_passageiro:'Passageiros',
       segmento:'Segmento',sub_segmento:'Subsegmento',tipo_carroceria:'Tipo de carroceria',tipo_veiculo:'Tipo de veículo',cap_maxima_tracao:'Capacidade máxima de tração'};
     const specs = element('dl',undefined,'market-specs');
-    const values = {brand:data.brand,model:data.model,year:data.year,...data.specs};
+    const values = {brand:data.brand,model:data.model,...data.specs,year:vehicleYears({...vehicle,plateLookup:{data}})};
     Object.entries(labels).forEach(([key,label]) => {
       if (!values[key]) return;
       const field = element('div');
@@ -1033,7 +1040,7 @@ function details(vehicle) {
   if (evaluating) {
     const info = element('section',undefined,'assessment-panel assessment-info');
     const list = element('ul');
-    const specs = [['Ano-modelo',vehicle.year],['Quilometragem',number.format(vehicle.km)+' km'],
+    const specs = [['Ano (fabricação/modelo)',vehicleYears(vehicle)],['Quilometragem',number.format(vehicle.km)+' km'],
       ['Versão',vehicle.trim],['Tipo informado',vehicle.vehicleKind],['Placa',vehicle.plate],['Cidade',vehicle.city],
       ['Proprietário',vehicle.owner],['WhatsApp',vehicle.phone]];
     specs.forEach(([name,value]) => {
