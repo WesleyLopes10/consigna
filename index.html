@@ -369,12 +369,7 @@ dialog .media,.vehicle-gallery .media,.market-listing-photo{background:#edf1f7;b
 <label>Placa<input name="plate" maxlength="7" pattern="[A-Za-z]{3}[0-9][A-Za-z0-9][0-9]{2}" placeholder="ABC1D23" autocapitalize="characters" required></label>
 <label>Marca<input name="brand" list="pre-brands" maxlength="40" placeholder="Digite ou escolha a marca" required></label><datalist id="pre-brands"></datalist>
 <label>Modelo<input name="model" list="pre-models" maxlength="79" placeholder="Digite ou escolha o modelo" required></label><datalist id="pre-models"></datalist>
-<label>Ano de fabricação<input name="reportedYear" type="number" min="1886" max="2100" inputmode="numeric" placeholder="Informe se não vier da consulta"></label>
 <label>Ano-modelo<input name="year" type="number" min="1886" max="2100" required></label>
-<label>Categoria do veículo<input name="fipeType" list="fipe-types" maxlength="100"></label>
-<datalist id="fipe-types"></datalist>
-<label>Combustível<input name="fipeFuel" list="fipe-fuels" maxlength="100"></label>
-<datalist id="fipe-fuels"></datalist>
 <div class="vehicle-kind" role="group" aria-labelledby="vehicle-kind-label"><strong id="vehicle-kind-label">Tipo do veículo · Obrigatório</strong>
 <div class="vehicle-kind-options">
 <label><input type="radio" name="vehicleKind" value="Automático" required> Automático</label>
@@ -502,21 +497,8 @@ function customerForm() {
   $('#content').append($('#pre-template').content.cloneNode(true));
   const form = $('#pre-form');
   configureCustomerFields(form);
-  let catalogRequested = false;
-  form.addEventListener('focusin',async event => {
-    if (catalogRequested || !['plate','fipeType','fipeFuel'].includes(event.target.name)) return;
-    catalogRequested = true;
-    try {
-      const response = await fetch('./api/fipe-catalogos',{signal:AbortSignal.timeout(9000)});
-      if (!response.ok) throw Error();
-      const {types,fuels} = await response.json();
-      $('#fipe-types').replaceChildren(...types.map(item => new Option(item.label,item.label)));
-      $('#fipe-fuels').replaceChildren(...fuels.map(item => new Option(item.label,item.label)));
-    } catch { catalogRequested = false; }
-  });
   const {plate,brand,model,year} = form.elements;
   let plateLookup;
-  plate.addEventListener('input',() => { form.elements.reportedYear.value = ''; });
   const lookupStatus = element('p');
   lookupStatus.setAttribute('role','status');
   const lookup = button('Consultar placa',async () => {
@@ -528,16 +510,6 @@ function customerForm() {
       const response = await fetch('./api/placa?placa='+encodeURIComponent(value)+'&modo=cadastro',{signal:AbortSignal.timeout(10000)});
       if (!response.ok) throw Error('Consulta indisponível');
       const data = await response.json();
-      const missing = !data.specs?.ano_fabricacao && !data.specs?.ano || !data.specs?.combustivel || !data.specs?.tipo_veiculo;
-      if (missing) {
-        try {
-          const extra = await fetch('./api/placa?placa='+encodeURIComponent(value),{signal:AbortSignal.timeout(11000)});
-          if (extra.ok) {
-            const details = await extra.json();
-            data.specs = {...details.specs,...data.specs};
-          }
-        } catch { /* Keep registration data when the complementary lookup fails. */ }
-      }
       if (plate.value.trim().toUpperCase() !== value) {
         lookupStatus.textContent = 'A placa mudou. Consulte novamente.';
         return;
@@ -548,10 +520,7 @@ function customerForm() {
         brand.dispatchEvent(new Event('input'));
       }
       if (data.model) model.value = data.model;
-      form.elements.reportedYear.value = data.specs?.ano_fabricacao || data.specs?.ano || '';
       if (data.year) year.value = data.year;
-      if (!form.elements.fipeFuel.value && data.specs?.combustivel) form.elements.fipeFuel.value = data.specs.combustivel;
-      if (!form.elements.fipeType.value) form.elements.fipeType.value = data.specs?.tipo_veiculo || (/^auto$/i.test(data.specs?.segmento || '') ? 'Carro' : '');
       lookupStatus.textContent = 'Confira os dados e complete os campos que faltarem.';
     } catch {
       lookupStatus.textContent = 'Não foi possível consultar a placa. Preencha os dados manualmente.';
@@ -662,9 +631,6 @@ function customerForm() {
       report.model = data.get('brand').trim()+' '+report.model;
       report.plate = report.plate.toUpperCase();
       report.vehicleKind = data.get('vehicleKind');
-      report.fipeType = data.get('fipeType').trim();
-      report.fipeFuel = data.get('fipeFuel').trim();
-      report.reportedYear = data.get('reportedYear');
       if (plateLookup?.plate === report.plate) report.plateLookup = plateLookup;
       Object.assign(report,{id:crypto.randomUUID(),created:Date.now(),photo:photos[0],photos,video,
         answers:checks.map((_,index) => Number(data.get('check'+index)))});
