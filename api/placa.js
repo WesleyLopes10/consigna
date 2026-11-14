@@ -1,5 +1,5 @@
 const money = new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
-const fields = ['marca','modelo','ano','ano_modelo','cor','municipio','uf','segmento','sub_segmento','cilindradas','combustivel','carroceria','tipo_veiculo','caixa_cambio'];
+const fields = ['marca','modelo','ano','ano_fabricacao','ano_modelo','cor','municipio','uf','segmento','sub_segmento','cilindradas','combustivel','carroceria','tipo_veiculo','caixa_cambio'];
 module.exports = async function handler(req,res) {
   res.setHeader('Cache-Control','no-store');
   if (req.method !== 'GET') return res.status(405).json({error:'Método inválido.'});
@@ -12,7 +12,7 @@ module.exports = async function handler(req,res) {
   try {
     const response = await fetch('https://api.placafipe.com.br/'+endpoint,{
       method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({placa,token}),
-      signal:AbortSignal.timeout(7000),redirect:'error'
+      signal:AbortSignal.timeout(6500),redirect:'error'
     });
     if (response.status === 429) return res.status(429).json({error:'Limite de consultas atingido.'});
     const data = await response.json();
@@ -20,7 +20,28 @@ module.exports = async function handler(req,res) {
     if (code === 4862 || code === 3974) return res.status(503).json({error:'Token sem acesso ou limite de consultas atingido.'});
     if (code === 759 || code === 167) return res.status(404).json({error:'Veículo não encontrado.'});
     if (!response.ok || ![1,22,312,499].includes(code)) return res.status(502).json({error:'Consulta indisponível.'});
-    const info = data.informacoes_veiculo || {};
+    let info = data.informacoes_veiculo || {};
+    if (!cadastro) {
+      // Use the registration endpoint as the source of record for both years.
+      try {
+        const registered = await fetch('https://api.placafipe.com.br/getplaca',{
+          method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({placa,token}),
+          signal:AbortSignal.timeout(2500),redirect:'error'
+        });
+        if (registered.ok) {
+          const record = await registered.json();
+          if (Number(record.codigo) === 1 && record.informacoes_veiculo) {
+            const vehicle = record.informacoes_veiculo;
+            info = {...info};
+            if (/^\d{4}$/.test(String(vehicle.ano || ''))) {
+              info.ano = vehicle.ano;
+              info.ano_fabricacao = vehicle.ano;
+            }
+            if (/^\d{4}$/.test(String(vehicle.ano_modelo || ''))) info.ano_modelo = vehicle.ano_modelo;
+          }
+        }
+      } catch { /* Preserve FIPE results if the registration lookup fails. */ }
+    }
     const brand = String(info.marca || '').trim().slice(0,40);
     const model = String(info.modelo || '').trim().slice(0,79);
     const year = Number(info.ano_modelo);
