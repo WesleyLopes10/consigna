@@ -3,21 +3,33 @@ module.exports = async (req,res) => {
   const model = String(req.query.modelo || '').trim();
   if (!model || model.length > 100) return res.status(400).end();
   const key = process.env.OPENAI_API_KEY;
-  if (!key) return res.status(503).end();
+  const crawlKey = process.env.FIRECRAWL_API_KEY;
+  if (!key || !crawlKey) return res.status(503).json({error:'Configure OPENAI_API_KEY e FIRECRAWL_API_KEY no servidor.'});
   const url = new URL('https://www.usadofacil.com.br/v6/resultado_busca.asp');
   const motor = String(req.query.motorizacao || '').trim().replace(',','.');
   const year = String(req.query.ano || '').trim();
   if ((motor && !/^\d\.\d$/.test(motor)) || (year && !/^\d{4}$/.test(year))) return res.status(400).end();
-  url.search = new URLSearchParams({tipo:'0',veiculo:model.toUpperCase(),valor:'',motorizacao:motor,ano:year,cidade:'',origem:'default'}).toString();
+  const filters = new URLSearchParams({veiculo:model.toUpperCase()});
+  if (motor) filters.set('motorizacao',motor);
+  if (year) filters.set('anomin',year);
+  url.search = filters.toString();
+  let stage = 'Firecrawl';
   try {
-    const page = await fetch(url,{signal:AbortSignal.timeout(8000)});
-    if (!page.ok || new URL(page.url).hostname !== url.hostname) return res.status(502).end();
-    const html = await page.text();
-    const cards = [...html.matchAll(/<a\b[^>]*href=["'][^"']*detalhes\.asp\?cod=[^"']+["'][^>]*>/gi)];
+    const page = await fetch('https://api.firecrawl.dev/v2/scrape',{
+      method:'POST',headers:{Authorization:'Bearer '+crawlKey,'Content-Type':'application/json'},
+      signal:AbortSignal.timeout(20000),
+      body:JSON.stringify({url:url.href,formats:['rawHtml'],onlyMainContent:false,waitFor:2500,timeout:17000})
+    });
+    if (!page.ok) return res.status(502).json({error:'Firecrawl não conseguiu ler a página (HTTP '+page.status+').'});
+    const scrape = await page.json();
+    const html = scrape.data?.rawHtml;
+    if (typeof html !== 'string' || !html) return res.status(502).json({error:'Firecrawl não retornou o HTML da busca.'});
+    const cards = [...html.matchAll(/<a\b[^>]*href=["'][^"']*detalhes\.asp\?[^"']*\bcod=[^"']+["'][^>]*>/gi)];
     if (!cards.length) return res.status(502).json({error:'A página não entregou anúncios no HTML.'});
     const snippets = cards.slice(0,30).map((match,index) => html.slice(match.index,
       Math.min(cards[index+1]?.index ?? html.length,match.index+4500)).replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,''));
     const properties = Object.fromEntries(['title','price','year','mileage','photo','version','dealer','location','url'].map(field => [field,{type:'string'}]));
+    stage = 'OpenAI';
     const response = await fetch('https://api.openai.com/v1/responses',{
       method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},
       signal:AbortSignal.timeout(18000),
@@ -28,7 +40,7 @@ module.exports = async (req,res) => {
           cars:{type:'array',items:{type:'object',properties,required:Object.keys(properties),additionalProperties:false}}
         },required:['cars'],additionalProperties:false}}}})
     });
-    if (!response.ok) return res.status(502).end();
+    if (!response.ok) return res.status(502).json({error:'OpenAI não conseguiu tratar os anúncios (HTTP '+response.status+').'});
     const body = await response.json();
     const output = body.output?.flatMap(item => item.content || []).find(item => item.type === 'output_text');
     const payload = JSON.parse(output?.text);
@@ -60,5 +72,5 @@ module.exports = async (req,res) => {
     const average = ranked.length === 3 ? ranked.reduce((sum,car) => sum+car.amount,0)/3 : null;
     res.setHeader('Cache-Control','s-maxage=300');
     return res.status(200).json({cars:ranked,average,searchUrl:url.href});
-  } catch { return res.status(502).end(); }
+  } catch { return res.status(502).json({error:'Falha na etapa '+stage+'.'}); }
 };
