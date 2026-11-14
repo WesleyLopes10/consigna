@@ -1051,6 +1051,7 @@ function marketCards(vehicle,container) {
     results.replaceChildren();
     const consulted = Number.isFinite(consultedAt) ? new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short',timeZone:'America/Cuiaba'}).format(consultedAt) : 'não registrada';
     results.append(element('p','Data da consulta: '+consulted));
+    if (data.warning) results.append(element('p',data.warning));
     const entries = Array.isArray(data.fipe) ? data.fipe : [];
     const comfort = /hb20s/i.test(data.model || vehicle.model) &&
       (/comfor/i.test([data.model,vehicle.model].join(' ')) || entries.some(row => ['0152188','0152170'].includes(String(row.code).replace(/\D/g,''))));
@@ -1094,7 +1095,7 @@ function marketCards(vehicle,container) {
       field.append(element('dt',label),element('dd',values[key]));
       specs.append(field);
     });
-    if (specs.childElementCount) results.append(element('h3','Dados da API Placas'),specs);
+    if (specs.childElementCount) results.append(element('h3','Dados da consulta de placa'),specs);
   }
   toolbar.append(heading,lookup);
   panel.append(toolbar,status,results);
