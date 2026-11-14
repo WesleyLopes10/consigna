@@ -883,14 +883,14 @@ function comparableListings(vehicle) {
         results.append(link);
         return;
       }
-      const {cars,average,aiValidated} = await response.json();
+      const {cars,average,aiValidated,comparables} = await response.json();
       const search = new URL('https://www.usadofacil.com.br/v6/resultado_busca.asp');
       search.search = new URLSearchParams({tipo:'0',veiculo:query.toUpperCase(),valor:'',
         motorizacao:defaults.motor,ano:defaults.year,cidade:'',origem:'default'});
       const report = element('section',undefined,'market-card');
       report.append(element('h4','Relatório de mercado'),element('p',[query,defaults.motor,defaults.year].filter(Boolean).join(' · ')),
         element('p',average == null ? (aiValidated === false && cars.length ? 'Anúncios encontrados. Confira as versões antes de indicar um preço.' : 'Amostra insuficiente para indicar um preço.') : 'Preço de venda indicado · '+money.format(average),'market-price'),
-        element('p',cars.length+' de 3 comparáveis encontrados na página consultada. O cálculo usa a média dos três menores preços anunciados do mesmo ano-modelo.'));
+        element('p',(comparables ?? cars.length)+' de 3 anúncios compatíveis para o cálculo. A média usa os três primeiros anúncios quando todos são comparáveis.'));
       if (cars.length) {
         const evidence = element('ul');
         cars.forEach(car => evidence.append(element('li',[car.title,car.year,car.mileage,money.format(car.amount)].filter(Boolean).join(' · '))));
@@ -918,7 +918,7 @@ function comparableListings(vehicle) {
         card.append(link);
         results.append(card);
       });
-      status.textContent = cars.length ? (average == null ? (aiValidated === false && cars.length ? 'A validação por IA ficou indisponível.' : 'Menos de três comparáveis. Média indisponível.') : 'Média dos três menores preços anunciados na página consultada. Confira versão, km e estado antes de definir o preço.') : 'Nenhum anúncio encontrado.';
+      status.textContent = cars.length ? (average == null ? (aiValidated === false && cars.length ? 'A validação por IA ficou indisponível.' : 'Menos de três comparáveis. Média indisponível.') : 'Média dos três primeiros preços anunciados na página consultada. Confira versão, km e estado antes de definir o preço.') : 'Nenhum anúncio encontrado.';
     } catch {
       status.textContent = 'Não foi possível buscar os anúncios. Tente novamente.';
     } finally { lookup.disabled = false; }
