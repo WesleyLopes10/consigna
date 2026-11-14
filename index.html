@@ -335,6 +335,36 @@ function customerForm() {
   $('#content').append($('#pre-template').content.cloneNode(true));
   const form = $('#pre-form');
   configureCustomerFields(form);
+  const {plate,brand,model,year} = form.elements;
+  const lookupStatus = element('p');
+  lookupStatus.setAttribute('role','status');
+  const lookup = button('Consultar placa',async () => {
+    const value = plate.value.trim().toUpperCase();
+    if (!plate.reportValidity()) return;
+    lookup.disabled = true;
+    lookupStatus.textContent = 'Consultando placa…';
+    try {
+      const response = await fetch('./api/placa?placa='+encodeURIComponent(value),{signal:AbortSignal.timeout(10000)});
+      if (!response.ok) throw Error('Consulta indisponível');
+      const data = await response.json();
+      if (plate.value.trim().toUpperCase() !== value) {
+        lookupStatus.textContent = 'A placa mudou. Consulte novamente.';
+        return;
+      }
+      if (data.brand) {
+        brand.value = data.brand;
+        brand.dispatchEvent(new Event('input'));
+      }
+      if (data.model) model.value = data.model;
+      if (data.year) year.value = data.year;
+      lookupStatus.textContent = 'Confira os dados e complete os campos que faltarem.';
+    } catch {
+      lookupStatus.textContent = 'Não foi possível consultar a placa. Preencha os dados manualmente.';
+    } finally {
+      lookup.disabled = false;
+    }
+  });
+  plate.closest('label').after(lookup,lookupStatus);
   const steps = [...form.querySelectorAll('fieldset')];
   let step = 0;
   const back = $('#pre-back'), next = $('#pre-next');
