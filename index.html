@@ -991,7 +991,7 @@ function photo(vehicle, urls) {
 function vehicleYears(vehicle) {
   const lookup = vehicle.plateLookup?.data;
   const valid = value => /^\d{4}$/.test(String(value ?? '').trim());
-  const manufacture = [lookup?.specs?.ano_fabricacao,lookup?.specs?.ano,vehicle.reportedYear].find(valid);
+  const manufacture = [lookup?.specs?.ano_fabricacao,vehicle.reportedYear,lookup?.specs?.ano].find(valid);
   const model = [vehicle.year,lookup?.year,lookup?.specs?.ano_modelo].find(valid);
   return [manufacture,model].filter(valid).map(value => String(value).trim()).join('/');
 }
@@ -1031,7 +1031,7 @@ function usadoFacilFields(vehicle) {
   const raw = (data?.model || vehicle.model || '').trim();
   const model = /\bhb20s/i.test(raw) ? 'HB20S' : /\bhb20/i.test(raw) ? 'HB20' : raw;
   const cc = Number(data?.specs?.cilindradas);
-  return {model,motor:cc >= 500 && cc <= 8000 ? (cc/1000).toFixed(1) : '',year:[data?.specs?.ano,vehicle.reportedYear,vehicle.year,data?.year].map(value => String(value || '').trim()).find(value => /^\d{4}$/.test(value)) || ''};
+  return {model,motor:cc >= 500 && cc <= 8000 ? (cc/1000).toFixed(1) : '',year:[data?.specs?.ano_fabricacao,vehicle.reportedYear,data?.specs?.ano,vehicle.year,data?.year].map(value => String(value || '').trim()).find(value => /^\d{4}$/.test(value)) || ''};
 }
 function comparableListings(vehicle) {
   const defaults = usadoFacilFields(vehicle);
