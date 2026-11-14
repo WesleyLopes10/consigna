@@ -44,6 +44,8 @@ module.exports = async (req,res) => {
   const motor = String(req.query.motorizacao || '').trim().replace(',','.');
   const year = String(req.query.ano || '').trim();
   if ((motor && !/^\d\.\d$/.test(motor)) || (year && !/^\d{4}$/.test(year))) return res.status(400).end();
+  const modelYear = String(req.query.anoModelo || year).trim();
+  if (modelYear && !/^\d{4}$/.test(modelYear)) return res.status(400).end();
   const filters = new URLSearchParams({veiculo:model.toUpperCase()});
   if (motor) filters.set('motorizacao',motor);
   if (year) filters.set('anomin',year);
@@ -81,16 +83,14 @@ module.exports = async (req,res) => {
       } catch { return []; }
     });
     if (!cars.length) return res.status(502).json({error:'Os cards extraídos não tinham link e preço verificáveis.'});
-    const first = [...new Map(cars.map(car => [new URL(car.url).searchParams.get('cod'),car])).values()].slice(0,3);
-    const matching = first.filter(car => !year || car.modelYear === year);
-    const candidates = [...new Map(matching.map(car => [new URL(car.url).searchParams.get('cod'),car])).values()]
-      .sort((a,b) => a.amount-b.amount);
-    const sample = candidates.slice(0,15);
-    const approved = await approvedCodes(key,model,motor,year,sample);
-    const ranked = (approved === null ? sample : sample.filter((_,index)=>approved.has(index))).slice(0,3);
-    const average = approved !== null && ranked.length === 3 ? ranked.reduce((sum,car) => sum+car.amount,0)/3 : null;
-    res.setHeader('Cache-Control','s-maxage=300');
-    return res.status(200).json({cars:first,comparables:ranked.length,average,searchUrl:url.href,aiValidated:approved !== null});
+    const distinct = [...new Map(cars.map(car => [new URL(car.url).searchParams.get('cod'),car])).values()];
+    const sample = distinct.filter(car => !modelYear || car.modelYear === modelYear).slice(0,15);
+    const approved = await approvedCodes(key,model,motor,modelYear,sample);
+    const prices = sample.filter((_,index)=>approved?.has(index)).map(car=>car.amount);
+    const stats = prices.length ? {min:Math.min(...prices),max:Math.max(...prices),
+      mean:prices.reduce((sum,price)=>sum+price,0)/prices.length,count:prices.length} : null;
+    if (approved !== null) res.setHeader('Cache-Control','s-maxage=300');
+    return res.status(200).json({cars:distinct.slice(0,3),stats,searchUrl:url.href,aiValidated:approved !== null});
   } catch (error) {
     const timedOut = error?.name === 'TimeoutError' || error?.name === 'AbortError';
     return res.status(timedOut ? 504 : 502).json({error:timedOut ? stage+' excedeu o tempo limite da consulta.' : 'Não foi possível concluir a etapa '+stage+'.'});
