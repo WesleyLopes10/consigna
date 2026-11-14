@@ -872,7 +872,17 @@ function comparableListings(vehicle) {
         status.textContent = 'Busca ainda não configurada no servidor.';
         return;
       }
-      if (!response.ok) throw Error();
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        status.textContent = error.error || 'Não foi possível buscar os anúncios.';
+        const direct = new URL('https://www.usadofacil.com.br/v6/resultado_busca.asp');
+        direct.search = new URLSearchParams({tipo:'0',veiculo:query.toUpperCase(),valor:'',
+          motorizacao:defaults.motor,ano:defaults.year,cidade:'',origem:'default'});
+        const link = element('a','Abrir busca no Usado Fácil');
+        Object.assign(link,{href:direct.href,target:'_blank',rel:'noopener noreferrer'});
+        results.append(link);
+        return;
+      }
       const {cars,average} = await response.json();
       const search = new URL('https://www.usadofacil.com.br/v6/resultado_busca.asp');
       search.search = new URLSearchParams({tipo:'0',veiculo:query.toUpperCase(),valor:'',
