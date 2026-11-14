@@ -26,11 +26,13 @@ module.exports = async (req,res) => {
       try {
         const link = new URL(row.url,url);
         if (link.protocol !== 'https:' || !['www.usadofacil.com.br','usadofacil.com.br'].includes(link.hostname) || !row.title) return [];
-        if (link.pathname.toLowerCase().includes('resultado_busca') || link.pathname === '/') return [];
+        if (!/\/detalhes\.asp$/i.test(link.pathname) || !link.searchParams.get('cod')) return [];
         const price = String(row.price || '').trim();
         if (!/^(?:R\$\s*)?(?:\d{1,3}(?:\.\d{3})+|\d+)(?:,\d{2})?$/.test(price)) return [];
         const amount = Number(price.replace(/^R\$\s*/,'').replace(/\./g,'').replace(',','.'));
         if (!Number.isFinite(amount) || amount <= 0) return [];
+        const modelYear = String(row.year || '').match(/\d{4}/g)?.at(-1);
+        if (year && modelYear !== year) return [];
         let photo;
         if (row.photo) {
           try {
@@ -42,7 +44,7 @@ module.exports = async (req,res) => {
         return [{title:row.title,amount,year:row.year,mileage:row.mileage,version:row.version,dealer:row.dealer,location:row.location,photo,url:link.href}];
       } catch { return []; }
     });
-    const ranked = [...new Map(cars.map(car => [car.photo || [car.url,car.title,car.amount,car.mileage,car.dealer].join('|'),car])).values()].sort((a,b) => a.amount-b.amount).slice(0,3);
+    const ranked = [...new Map(cars.map(car => [new URL(car.url).searchParams.get('cod'),car])).values()].sort((a,b) => a.amount-b.amount).slice(0,3);
     const average = ranked.length === 3 ? ranked.reduce((sum,car) => sum+car.amount,0)/3 : null;
     res.setHeader('Cache-Control','s-maxage=300');
     return res.status(200).json({cars:ranked,average,searchUrl:url.href});
