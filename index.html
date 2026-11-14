@@ -416,7 +416,7 @@ function customerForm() {
         lookupStatus.textContent = 'A placa mudou. Consulte novamente.';
         return;
       }
-      plateLookup = {plate:value,data};
+      plateLookup = {plate:value,data,consultedAt:Date.now()};
       if (data.brand) {
         brand.value = data.brand;
         brand.dispatchEvent(new Event('input'));
@@ -807,7 +807,7 @@ function description(vehicle) {
 
 async function savePlateLookup(vehicle,data) {
   const db = await database;
-  const plateLookup = {plate:vehicle.plate,data};
+  const plateLookup = {plate:vehicle.plate,data,consultedAt:Date.now()};
   await new Promise((resolve,reject) => {
     const transaction = db.transaction('vehicles','readwrite');
     transaction.oncomplete = resolve;
@@ -824,6 +824,7 @@ async function savePlateLookup(vehicle,data) {
     };
   });
   vehicles = await readVehicles();
+  return plateLookup;
 }
 async function normalizeVehicle(vehicle,motor) {
   const raw = vehicle.plateLookup?.data?.model || vehicle.model;
@@ -952,8 +953,8 @@ function marketCards(vehicle,container) {
       const response = await fetch('./api/placa?placa='+encodeURIComponent(vehicle.plate),{signal:AbortSignal.timeout(10000)});
       if (!response.ok) throw Error();
       const data = await response.json();
-      await savePlateLookup(vehicle,data);
-      display(data);
+      const saved = await savePlateLookup(vehicle,data);
+      display(saved.data,saved.consultedAt);
       status.textContent = 'Consulta salva na ficha.';
     } catch {
       status.textContent = 'Não foi possível concluir ou salvar a consulta. Tente novamente.';
@@ -961,8 +962,10 @@ function marketCards(vehicle,container) {
       lookup.disabled = false;
     }
   });
-  function display(data) {
+  function display(data,consultedAt) {
     results.replaceChildren();
+    const consulted = Number.isFinite(consultedAt) ? new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short',timeZone:'America/Cuiaba'}).format(consultedAt) : 'não registrada';
+    results.append(element('p','Data da consulta: '+consulted));
     const entries = Array.isArray(data.fipe) ? data.fipe : [];
     const comfort = /hb20s/i.test(data.model || vehicle.model) &&
       (/comfor/i.test([data.model,vehicle.model].join(' ')) || entries.some(row => ['0152188','0152170'].includes(String(row.code).replace(/\D/g,''))));
@@ -1001,7 +1004,7 @@ function marketCards(vehicle,container) {
   toolbar.append(heading,lookup);
   panel.append(toolbar,status,results);
   container.append(panel);
-  if (vehicle.plateLookup?.plate === vehicle.plate) display(vehicle.plateLookup.data);
+  if (vehicle.plateLookup?.plate === vehicle.plate) display(vehicle.plateLookup.data,vehicle.plateLookup.consultedAt);
   else status.textContent = 'Consulte a placa para carregar a FIPE e os dados do veículo.';
 }
 
