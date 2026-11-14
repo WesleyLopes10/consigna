@@ -321,7 +321,7 @@ function customerForm() {
   $('header label').remove();
   $('nav').remove();
   $('h1').textContent = 'Faça a avaliação do seu carro';
-  $('#intro').textContent = 'Preencha a ficha para gerar a estimativa de reparos.';
+  $('#intro').textContent = 'Preencha a ficha para receber sua primeira avaliação.';
   $('#content').append($('#pre-template').content.cloneNode(true));
   const form = $('#pre-form');
   configureCustomerFields(form);
@@ -460,9 +460,9 @@ function customerForm() {
       const pdf = await repairPdf(report);
       await save(report);
       screen.removeAttribute('aria-busy');
-      screen.replaceChildren(element('h2','Estimativa pronta'),
+      screen.replaceChildren(element('h2','Sua primeira avaliação está pronta'),
         element('p','A pré-avaliação foi salva neste navegador.'),
-        button('Baixar estimativa de custo',() => downloadFile(pdf,'avalia-top-estimativa-reparos.pdf'),'primary'));
+        button('Baixar primeira avaliação em PDF',() => downloadFile(pdf,'avalia-top-primeira-avaliacao.pdf'),'primary'));
     } catch {
       screen.remove();
       form.hidden = false;
@@ -528,7 +528,7 @@ function downloadFile(blob,name) {
 }
 async function repairReport(report) {
   try {
-    downloadFile(await repairPdf(report),'avalia-top-estimativa-reparos.pdf');
+    downloadFile(await repairPdf(report),'avalia-top-primeira-avaliacao.pdf');
   } catch {
     notice('Não foi possível gerar o PDF.');
   }
@@ -544,7 +544,7 @@ async function repairPdf(report) {
   const low = rows.reduce((sum,row) => sum+row.low,0);
   const high = rows.reduce((sum,row) => sum+row.high,0);
   let stream = '0.62 0.06 0.13 rg 36 738 523 66 re f\n1 1 1 rg\n';
-  stream += text('AVALIA TOP',52,774,19)+text('Estimativa de reparos',52,751,13);
+  stream += text('AVALIA TOP',52,774,19)+text('Primeira avaliação',52,751,13);
   stream += '0.07 0.17 0.14 rg\n';
   const model = Array.from(report.model || '');
   stream += text(model.slice(0,72).join(''),36,710);
@@ -552,13 +552,11 @@ async function repairPdf(report) {
   stream += text([report.code,report.year,report.plate,number.format(report.km)+' km'].filter(Boolean).join(' | '),36,676);
   rows.forEach((row,index) => {
     const y = 576-index*23;
-    stream += text(row.name,36,y,10)+text(row.condition,220,y,10)
-      +text(row.pending ? 'Conferir' : repairRange(row.low,row.high),393,y,10);
+    stream += text(row.name,36,y,10)+text(row.pending ? row.condition+' - conferir' : row.condition,270,y,10);
   });
   stream += '0.99 0.91 0.92 rg 36 600 523 61 re f\n0.07 0.17 0.14 rg\n';
-  stream += text('TOTAL ESTIMADO',48,644,11);
-  stream += text(repairRange(low,high),48,617,21);
-  stream += text('Média: '+money.format((low+high)/2),365,618,11);
+  stream += text('VALOR MÉDIO ESTIMADO DOS REPAROS',48,644,11);
+  stream += text(money.format((low+high)/2),48,617,23);
   const bottom = 576-rows.length*23-12;
   stream += text('Valores indicativos. Itens a conferir ficam fora do total.',36,bottom-46,10);
   stream += text('O custo final depende da inspeção e do orçamento da oficina.',36,bottom-62,10);
