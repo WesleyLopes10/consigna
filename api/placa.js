@@ -20,7 +20,7 @@ async function fallback(placa,res,status,error,cadastro) {
       .filter(row => typeof row?.texto_valor === 'string' && row.texto_valor.trim())
       .map(row => ({value:row.texto_valor,model:row.texto_modelo,brand:row.texto_marca,year:row.ano_modelo,
         code:row.codigo_fipe,reference:row.mes_referencia,fuel:row.combustivel,score:Number(row.score)||0}))
-      .sort((a,b)=>b.score-a.score);
+      .sort((a,b)=>b.score-a.score).slice(0,1);
     return res.status(200).json({brand,model,year,specs,fipe,lookupMode:cadastro ? 'cadastro' : 'fipe',
       provider:'API Placas',warning:'Consulta pela API reserva. Histórico do Desvalorizômetro indisponível nesta consulta.'});
   } catch {
