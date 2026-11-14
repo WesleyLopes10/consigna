@@ -1315,12 +1315,20 @@ async function marketCards(vehicle,container) {
     const entries = Array.isArray(data.fipe) ? data.fipe : [];
     const comfort = /hb20s/i.test(data.model || vehicle.model) &&
       (/comfor/i.test([data.model,vehicle.model].join(' ')) || entries.some(row => ['0152188','0152170'].includes(String(row.code).replace(/\D/g,''))));
-    const fipe = comfort ? ['0152188','0152170'].flatMap(code => {
+    const versions = comfort ? ['0152188','0152170'].flatMap(code => {
       const match = entries.find(row => String(row.code).replace(/\D/g,'') === code);
       return match ? [match] : [];
     }) : entries;
+    const kind = vehicle.vehicleKind;
+    const terms = {Manual:/\b(manual|mecanico|mecanica|mec|mt)\b/i,'Automático':/\b(automatico|automatica|aut|at|cvt|dct|automatizado)\b/i,'Elétrico':/\b(eletrico|eletrica|ev|bev)\b/i};
+    const fipe = terms[kind] ? versions.filter(row => {
+      const code = String(row.code).replace(/\D/g,'');
+      if (comfort && kind === 'Manual') return code === '0152188';
+      if (comfort && kind === 'Automático') return code === '0152170';
+      return terms[kind].test([row.model,kind === 'Elétrico' ? row.fuel : ''].join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g,''));
+    }) : versions;
     const references = element('div',undefined,'market-references');
-    if (!fipe.length) results.append(element('p','A API não retornou valor FIPE para esta placa.'));
+    if (!fipe.length) results.append(element('p',kind ? 'Nenhuma referência FIPE com indicação de '+kind.toLowerCase()+'.' : 'A API não retornou valor FIPE para esta placa.'));
     fipe.forEach((row,index) => {
       const card = element('article',undefined,'market-card');
       if (comfort) card.append(element('strong',String(row.code).replace(/\D/g,'') === '0152188' ? 'Câmbio manual' : 'Câmbio automático'));
@@ -1342,7 +1350,7 @@ async function marketCards(vehicle,container) {
       references.append(card);
     });
     if (references.childElementCount) results.append(references);
-    if (comfort && fipe.length < 2) results.append(element('p','A API ainda não retornou todos os códigos esperados (015218-8 e 015217-0).'));
+    if (comfort && !kind && fipe.length < 2) results.append(element('p','A API ainda não retornou todos os códigos esperados (015218-8 e 015217-0).'));
     const labels = {brand:'Marca',model:'Modelo',year:'Ano (fabricação/modelo)',SUBMODELO:'Submodelo',VERSAO:'Versão',ano:'Ano informado',
       cor:'Cor',municipio:'Município',uf:'UF',origem:'Origem',situacao:'Situação',codigoSituacao:'Código da situação',data:'Data da base',
       placa_alternativa:'Placa alternativa',ano_fabricacao:'Ano de fabricação',ano_modelo:'Ano-modelo (base complementar)',
@@ -1395,6 +1403,40 @@ function details(vehicle) {
       list.append(item);
     });
     info.append(element('h3','Dados do veículo e contato'),list);
+    const gearLabel = element('label','Câmbio / tipo informado');
+    const gear = element('select');
+    gear.append(new Option('Selecione',''),...['Manual','Automático','Elétrico'].map(kind=>new Option(kind,kind)));
+    gear.value = vehicle.vehicleKind || '';
+    gearLabel.append(gear);
+    const gearStatus = element('p');
+    gearStatus.setAttribute('role','status');
+    const saveGear = button('Salvar tipo',async () => {
+      if (!master() || !gear.value) { gear.focus(); return; }
+      const kind = gear.value;
+      saveGear.disabled = true;
+      try {
+        const db = await database;
+        await new Promise((resolve,reject) => {
+          const transaction = db.transaction('vehicles','readwrite');
+          transaction.oncomplete = resolve;
+          transaction.onabort = () => reject(transaction.error);
+          const store = transaction.objectStore('vehicles');
+          const request = store.get(vehicle.id);
+          request.onsuccess = () => {
+            const current = request.result;
+            if (!current || current.evaluated) { transaction.abort(); return; }
+            store.put({...current,vehicleKind:kind});
+          };
+        });
+        vehicles = await readVehicles();
+        if (master() && info.isConnected) {
+          details(vehicles.find(item=>item.id===vehicle.id));
+          notice('Tipo salvo. Filtros atualizados.');
+        }
+      } catch { gearStatus.textContent = 'Não foi possível salvar o tipo.'; }
+      finally { saveGear.disabled = false; }
+    });
+    info.append(gearLabel,saveGear,gearStatus);
     container.append(info);
     if (vehicle.plate) {
       const market = element('div');
