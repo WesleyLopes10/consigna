@@ -45,8 +45,8 @@ module.exports = async function handler(req,res) {
     const data = await response.json();
     const code = Number(data.codigo);
     if (code === 4862 || code === 3974) return fallback(placa,res,503,'Token sem acesso ou limite de consultas atingido.',cadastro);
-    if (code === 759 || code === 167) return res.status(404).json({error:'Veículo não encontrado.'});
-    if (!response.ok || ![1,22,312,499].includes(code)) return res.status(502).json({error:'Consulta indisponível.'});
+    if (code === 759 || code === 167) return fallback(placa,res,404,'Veículo não encontrado.',cadastro);
+    if (!response.ok || ![1,22,312,499].includes(code)) return fallback(placa,res,502,'Consulta indisponível.',cadastro);
     let info = data.informacoes_veiculo || {};
     if (!cadastro) {
       // Use the registration endpoint as the source of record for both years.
@@ -72,7 +72,7 @@ module.exports = async function handler(req,res) {
     const brand = String(info.marca || '').trim().slice(0,40);
     const model = String(info.modelo || '').trim().slice(0,79);
     const year = Number(info.ano_modelo);
-    if (!model && !year) return res.status(404).json({error:'Dados do veículo indisponíveis.'});
+    if (!model && !year) return fallback(placa,res,404,'Dados do veículo indisponíveis.',cadastro);
     const specs = Object.fromEntries(fields.filter(key => ['string','number'].includes(typeof info[key]) && String(info[key]).trim())
       .map(key => [key,String(info[key]).trim()]));
     const fipe = (Array.isArray(data.fipe) ? data.fipe : []).flatMap(row => {
@@ -85,6 +85,6 @@ module.exports = async function handler(req,res) {
     return res.status(200).json({brand,model,year:Number.isInteger(year)&&year>=1886&&year<=2100 ? year : undefined,
       specs,fipe,lookupMode:cadastro ? 'cadastro' : 'fipe',provider:'Placa FIPE',warning:code===22 ? 'Os valores FIPE retornados são de outros combustíveis. Confira antes de usar.' : undefined});
   } catch {
-    return res.status(502).json({error:'Consulta indisponível.'});
+    return fallback(placa,res,502,'Consulta indisponível.',cadastro);
   }
 };
