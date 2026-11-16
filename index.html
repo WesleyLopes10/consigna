@@ -1118,6 +1118,19 @@ function comparableListings(vehicle,{standalone=false} = {}) {
         report.append(metrics,element('p','Base: '+stats.count+' anúncio(s) comparável(is) validados pela IA.'));
       } else report.append(element('p',aiValidated ? 'Nenhum anúncio comparável para calcular a faixa.' : 'A faixa de preços está indisponível. Confira os anúncios abaixo.'));
       results.before(report);
+      if (standalone) {
+        const suggestion = element('section',undefined,'market-card');
+        suggestion.append(element('h4','Valor sugerido de compra'));
+        const prices = cars.slice(0,3).map(car => car.amount);
+        if (prices.length === 3 && prices.every(price => Number.isFinite(price) && price > 0)) {
+          const average = prices.reduce((total,price) => total + price,0) / 3;
+          suggestion.append(element('p',money.format(average * 0.75),'market-price'),
+            element('p','Média dos três anúncios: '+money.format(average)+' · Desconto de 25%'));
+        } else {
+          suggestion.append(element('p','São necessários três anúncios com preço para calcular o valor sugerido.'));
+        }
+        results.before(suggestion);
+      }
       cars.forEach(car => {
         const card = element('article',undefined,'market-card');
         const link = element('a','Ver busca no Usado Fácil');
