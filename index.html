@@ -1626,7 +1626,23 @@ function vehicleIssues(data) {
         item.append(link);
         list.append(item);
       });
-      results.append(element('p',report),element('h4','Fontes'),list);
+      const issues = element('ul');
+      for (const rawLine of report.split(/\r?\n/)) {
+        const line = rawLine.trim().replace(/\(?\[[^\]]+\]\(https?:\/\/[^)\s]+\)\)?/g,'').trim();
+        if (!line) continue;
+        const bullet = line.match(/^(?:\d+[.)]|[-*•])\s+(.+)/);
+        if (bullet) {
+          if (!results.contains(issues)) results.append(issues);
+          const currentItem = element('li');
+          const title = bullet[1].match(/^\*\*(.+?)\*\*(.*)$/);
+          if (title) currentItem.append(element('strong',title[1]),title[2]);
+          else currentItem.textContent = bullet[1];
+          issues.append(currentItem);
+        } else {
+          results.append(element('p',line.replace(/\*\*/g,'')));
+        }
+      }
+      if (sources.length) results.append(element('h4','Fontes'),list);
       status.textContent = '';
     } catch {
       status.textContent = 'Não foi possível concluir a pesquisa com fontes.';
