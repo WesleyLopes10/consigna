@@ -1599,6 +1599,43 @@ const pages = {
 };
 const navigationIcons = {feed:'▤',pending:'◷',unavailable:'⊘',register:'＋',consult:'⌕'};
 const navigationLabels = {home:'Início',feed:'Feed',pending:'Pendentes',unavailable:'Retirados',register:'Pré-avaliação',consult:'Consulta'};
+function vehicleIssues(data) {
+  const card = element('section',undefined,'assessment-panel');
+  const status = element('p','Pesquisando problemas recorrentes e recalls…');
+  status.setAttribute('role','status');
+  const results = element('div');
+  results.style.whiteSpace = 'pre-line';
+  const retry = button('Pesquisar novamente',load);
+  retry.hidden = true;
+  card.append(element('h3','Problemas crônicos e recalls'),status,results,retry);
+  async function load() {
+    retry.hidden = true;
+    status.textContent = 'Pesquisando problemas recorrentes e recalls…';
+    results.replaceChildren();
+    try {
+      const response = await fetch('./api/problemas-cronicos',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({model:[data.brand,data.model].filter(Boolean).join(' '),year:data.year}),
+        signal:AbortSignal.timeout(45000)});
+      if (!response.ok) throw Error();
+      const {report,sources} = await response.json();
+      const list = element('ul');
+      sources.forEach(([url,title]) => {
+        const link = element('a',title);
+        Object.assign(link,{href:url,target:'_blank',rel:'noopener noreferrer'});
+        const item = element('li');
+        item.append(link);
+        list.append(item);
+      });
+      results.append(element('p',report),element('h4','Fontes'),list);
+      status.textContent = '';
+    } catch {
+      status.textContent = 'Não foi possível concluir a pesquisa com fontes.';
+      retry.hidden = false;
+    }
+  }
+  load();
+  return card;
+}
 function renderPlateConsultation(content) {
   const form = element('form',undefined,'assessment-panel');
   const label = element('label','Placa do veículo');
@@ -1620,6 +1657,7 @@ function renderPlateConsultation(content) {
       if (data && results.isConnected && master()) {
         results.append(comparableListings({plate,model:[data.brand,data.model].filter(Boolean).join(' '),
           year:data.year,plateLookup:{plate,data}},{standalone:true}));
+        if (data.model) results.append(vehicleIssues(data));
       }
     } finally { submit.disabled = false; }
   };
