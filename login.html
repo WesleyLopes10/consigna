@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Entrar | AvaliaTop</title>
+<style>
+* { box-sizing: border-box }
+body { margin: 0; background: #eff2f6; color: #172138; font: 1rem system-ui, sans-serif; border-top: 5px solid #ab1628 }
+main { max-width: 30rem; margin: clamp(2rem, 10vh, 6rem) auto; padding: 1rem }
+section { background: white; border: 1px solid #d9e1ec; border-radius: 1rem; padding: clamp(1.25rem, 5vw, 2rem) }
+h1 { margin: 0 0 .75rem }
+p { color: #47566d; line-height: 1.5 }
+fieldset { border: 0; margin: 1.5rem 0; padding: 0 }
+label { display: block; margin-bottom: 1rem; font-weight: 600 }
+input, button, a { border-radius: .5rem; padding: .75rem; font: inherit }
+input, button { display: block; width: 100%; margin-top: .375rem; border: 1px solid #cad4e2 }
+button { background: #e8ecf2; color: #47566d }
+a { display: block; background: #ab1628; color: white; text-align: center; text-decoration: none; font-weight: 600 }
+a:focus-visible { outline: 3px solid #172138; outline-offset: 3px }
+</style>
+</head>
+<body>
+<main>
+<section aria-labelledby="title">
+<h1 id="title">Entrar no AvaliaTop</h1>
+<p>O acesso com e-mail e senha ainda será ativado.</p>
+<fieldset disabled aria-label="Dados de acesso">
+<label>E-mail<input type="email" autocomplete="username"></label>
+<label>Senha<input type="password" autocomplete="current-password"></label>
+<button type="button">Entrar</button>
+</fieldset>
+<a href="./">Continuar sem login</a>
+</section>
+</main>
+</body>
+</html>
