@@ -517,7 +517,7 @@ function customerForm() {
     lookup.disabled = true;
     lookupStatus.textContent = 'Consultando placa…';
     try {
-      const response = await fetch('./api/placa?placa='+encodeURIComponent(value)+'&modo=cadastro',{signal:AbortSignal.timeout(10000)});
+      const response = await fetch('./api/placa?placa='+encodeURIComponent(value)+'&modo=cadastro',{signal:AbortSignal.timeout(15000)});
       if (!response.ok) throw Error('Consulta indisponível');
       const data = await response.json();
       if (plate.value.trim().toUpperCase() !== value) {
@@ -816,7 +816,7 @@ function purchaseCard(vehicle,rows) {
         if (row?.historyId) {
           try {
             const historical = await fetch('./api/desvalorizometro',{method:'POST',headers:{'Content-Type':'application/json'},
-              body:JSON.stringify({id:row.historyId}),signal:AbortSignal.timeout(10000)});
+              body:JSON.stringify({id:row.historyId}),signal:AbortSignal.timeout(15000)});
             if (historical.ok) {
               const {points} = await historical.json();
               history = points.slice(-12).map(([,amount])=>amount);
@@ -1037,7 +1037,7 @@ function usadoFacilFields(vehicle) {
   const raw = (data?.model || vehicle.model || '').trim();
   const model = /\bhb20s/i.test(raw) ? 'HB20S' : /\bhb20/i.test(raw) ? 'HB20' : raw;
   const cc = Number(data?.specs?.cilindradas);
-  return {model,motor:cc >= 500 && cc <= 8000 ? (cc/1000).toFixed(1) : '',year:[data?.specs?.ano_fabricacao,vehicle.reportedYear,data?.specs?.ano,vehicle.year,data?.year].map(value => String(value || '').trim()).find(value => /^\d{4}$/.test(value)) || ''};
+  return {model,motor:vehicle.motor || (cc >= 500 && cc <= 8000 ? (cc/1000).toFixed(1) : ''),year:[data?.specs?.ano_fabricacao,vehicle.reportedYear,data?.specs?.ano,vehicle.year,data?.year].map(value => String(value || '').trim()).find(value => /^\d{4}$/.test(value)) || ''};
 }
 function comparableListings(vehicle,{standalone=false} = {}) {
   const defaults = usadoFacilFields(vehicle);
@@ -1157,7 +1157,7 @@ function forecastRate(values) {
   const key = JSON.stringify(values);
   if (!forecastRequests.has(key)) {
     const request = fetch('./api/fipe-projecao',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({values}),signal:AbortSignal.timeout(10000)}).then(async response => {
+      body:JSON.stringify({values}),signal:AbortSignal.timeout(15000)}).then(async response => {
       if (!response.ok) throw Error();
       const {rate} = await response.json();
       if (!Number.isFinite(rate) || Math.abs(rate)>0.05) throw Error();
@@ -1184,7 +1184,7 @@ function fipeHistory(row) {
     status.textContent = 'Carregando histórico FIPE…';
     try {
       const response = await fetch('./api/desvalorizometro',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({id:row.historyId}),signal:AbortSignal.timeout(10000)});
+        body:JSON.stringify({id:row.historyId}),signal:AbortSignal.timeout(15000)});
       if (!response.ok) throw Error();
       const data = await response.json();
       if (!data.points?.length) {
@@ -1312,7 +1312,7 @@ async function marketCards(vehicle,container,{standalone=false} = {}) {
     lookup.disabled = true;
     status.textContent = 'Consultando…';
     try {
-      const response = await fetch('./api/placa?placa='+encodeURIComponent(vehicle.plate),{signal:AbortSignal.timeout(10000)});
+      const response = await fetch('./api/placa?placa='+encodeURIComponent(vehicle.plate),{signal:AbortSignal.timeout(15000)});
       if (!response.ok) throw Error();
       const data = await response.json();
       const saved = standalone ? {data,consultedAt:Date.now()} : await saveMarketLookup(vehicle,'plateLookup',data);
@@ -1657,22 +1657,28 @@ function renderPlateConsultation(content) {
   const label = element('label','Placa do veículo');
   const input = element('input');
   Object.assign(input,{required:true,pattern:'[A-Za-z]{3}[0-9][A-Za-z0-9][0-9]{2}',maxLength:7,placeholder:'ABC1D23',autocapitalize:'characters'});
+  const motorLabel = element('label','Motorização (opcional)');
+  const motorInput = element('input');
+  Object.assign(motorInput,{inputMode:'decimal',pattern:'[0-9][.,][0-9]',placeholder:'Ex.: 1.0 ou 1,6',
+    title:'Informe a motorização com uma casa decimal, por exemplo 1.0.'});
+  motorLabel.append(motorInput);
   label.append(input);
   const submit = element('button','Consultar placa','primary');
   const results = element('div',undefined,'plate-consult-results');
-  form.append(label,submit);
+  form.append(label,motorLabel,submit);
   content.append(form,results);
   form.onsubmit = async event => {
     event.preventDefault();
     if (!master() || submit.disabled) return;
     const plate = input.value.trim().toUpperCase();
+    const motor = motorInput.value.replace(',','.');
     results.replaceChildren();
     submit.disabled = true;
     try {
       const data = await marketCards({plate},results,{standalone:true});
       if (data && results.isConnected && master()) {
         results.append(comparableListings({plate,model:[data.brand,data.model].filter(Boolean).join(' '),
-          year:data.year,plateLookup:{plate,data}},{standalone:true}));
+          year:data.year,motor,plateLookup:{plate,data}},{standalone:true}));
         if (data.model) results.append(vehicleIssues(data));
       }
     } finally { submit.disabled = false; }
