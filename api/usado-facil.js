@@ -50,7 +50,7 @@ module.exports = async (req,res) => {
   if (motor) filters.set('motorizacao',motor);
   if (year) filters.set('anomin',year);
   url.search = filters.toString();
-  let stage = 'Firecrawl';
+  const stage = 'Firecrawl';
   try {
     const page = await fetch('https://api.firecrawl.dev/v2/scrape',{
       method:'POST',headers:{Authorization:'Bearer '+crawlKey,'Content-Type':'application/json'},
@@ -59,6 +59,10 @@ module.exports = async (req,res) => {
     });
     if (!page.ok) return res.status(502).json({error:'Firecrawl não conseguiu ler a página (HTTP '+page.status+').'});
     const scrape = await page.json();
+    const upstreamStatus = Number(scrape.data?.metadata?.statusCode);
+    if (scrape.success === false || upstreamStatus >= 400) {
+      return res.status(502).json({error:'O Firecrawl não conseguiu carregar a busca no Usado Fácil'+(upstreamStatus >= 400 ? ' (HTTP '+upstreamStatus+')' : '')+'.',searchUrl:url.href});
+    }
     const html = scrape.data?.rawHtml;
     if (typeof html !== 'string' || !html) return res.status(502).json({error:'Firecrawl não retornou o HTML da busca.'});
     const cars = readCards(html,url).flatMap(row => {
@@ -82,7 +86,15 @@ module.exports = async (req,res) => {
         return [{title:row.title,amount,modelYear,year:row.year,mileage:row.mileage,version:row.version,dealer:row.dealer,location:row.location,photo,url:link.href}];
       } catch { return []; }
     });
-    if (!cars.length) return res.status(502).json({error:'Os cards extraídos não tinham link e preço verificáveis.'});
+    if (!cars.length) {
+      if (/detalhes\.asp(?:\?|&#63;)/i.test(html)) {
+        return res.status(502).json({error:'O Firecrawl recebeu a página, mas os cards não puderam ser lidos.',searchUrl:url.href});
+      }
+      if (/nenhum\s+(?:ve[ií]culo|resultado|an[uú]ncio)|n[aã]o\s+(?:foi|foram)\s+encontrad/i.test(html)) {
+        return res.status(200).json({cars:[],stats:null,searchUrl:url.href,aiValidated:false});
+      }
+      return res.status(502).json({error:'O Firecrawl retornou uma página sem cards e sem indicação de busca vazia.',searchUrl:url.href});
+    }
     const distinct = [...new Map(cars.map(car => [new URL(car.url).searchParams.get('cod'),car])).values()];
     const sample = distinct.filter(car => !modelYear || car.modelYear === modelYear).slice(0,15);
     const approved = await approvedCodes(key,model,motor,modelYear,sample);
