@@ -967,7 +967,7 @@ function media(blob, urls) {
   return url;
 }
 function release(urls) { urls.splice(0).forEach(url => URL.revokeObjectURL(url)); }
-const pageRoutes = {home:'',feed:'feed',pending:'pendentes',unavailable:'retirados',register:'pre-avaliacoes',evaluation:'avaliar',consult:'consulta'};
+const pageRoutes = {home:'',feed:'feed',pending:'pendentes',unavailable:'retirados',register:'pre-avaliacoes',evaluation:'avaliar',consult:'consulta',vehicle:'veiculo'};
 function updateRoute(next,vehicleId) {
   const url = new URL(location.href);
   url.search = '';
@@ -1425,7 +1425,59 @@ async function marketCards(vehicle,container,{standalone=false} = {}) {
   else return loadFipe();
 }
 
+function feedVehicle(vehicleId) {
+  const vehicle = vehicles.find(item => String(item.id) === vehicleId && item.evaluated && !item.unavailable);
+  const content = $('#content');
+  content.append(button('← Voltar ao feed',() => show('feed')));
+  if (!vehicle) {
+    content.append(element('p','Veículo indisponível no feed.'));
+    return;
+  }
+  $('h1').textContent = vehicle.model;
+  const section = element('section',undefined,'assessment-panel');
+  section.append(element('h2','Ficha do veículo'));
+  if (vehicle.photo) section.append(photo(vehicle,mediaUrls));
+  const list = element('dl',undefined,'market-specs');
+  for (const [label,value] of [
+    ['Código',vehicle.code],['Ano de fabricação',vehicleYears(vehicle).includes('/') ? vehicleYears(vehicle).split('/')[0] : vehicle.reportedYear],
+    ['Ano-modelo',vehicle.year || vehicle.plateLookup?.data?.year],['Marca',vehicle.brand],['Versão',vehicle.trim],
+    ['Quilometragem',Number.isFinite(vehicle.km) ? number.format(vehicle.km)+' km' : ''],
+    ['Tipo',vehicle.vehicleKind],['Combustível',vehicle.fipeFuel],['Cidade',vehicle.city],
+    ['Valor da avaliação',Number.isFinite(vehicle.value) ? money.format(vehicle.value) : '']
+  ]) {
+    if (value == null || value === '') continue;
+    const field = element('div');
+    field.append(element('dt',label),element('dd',value));
+    list.append(field);
+  }
+  section.append(list);
+  content.append(section);
+  if (master()) {
+    const feedback = element('p');
+    feedback.setAttribute('role','status');
+    const retire = button('Marcar como indisponível',async () => {
+      retire.disabled = true;
+      try {
+        await save({...vehicles.find(item => item.id === vehicle.id) || vehicle,unavailable:true});
+        show('feed');
+      } catch {
+        feedback.textContent = 'Não foi possível alterar a disponibilidade.';
+        retire.disabled = false;
+      }
+    });
+    section.append(retire,feedback);
+  }
+  if (vehicle.plate) marketCards(vehicle,content,{standalone:true});
+  else content.append(element('p','Consulta FIPE indisponível para veículo sem placa cadastrada.'));
+}
 function details(vehicle) {
+  if (page === 'feed' && vehicle.evaluated && !vehicle.unavailable) {
+    updateRoute('vehicle',vehicle.id);
+    page = 'vehicle';
+    render();
+    window.scrollTo(0,0);
+    return;
+  }
   const evaluating = master() && !vehicle.evaluated && Boolean(vehicle.answers?.length);
   const container = evaluating ? element('section',undefined,'evaluation-page') : $('#detail');
   if (evaluating) {
@@ -1739,11 +1791,15 @@ function render() {
     $('nav').append(item);
   });
   if (master()) $('nav').prepend(element('p','Painel de avaliações','master-nav-title'));
-  const [title,intro] = pages[page];
+  const [title,intro] = page === 'vehicle' ? ['Detalhes do veículo',''] : pages[page];
   $('h1').textContent = title;
   $('#intro').textContent = intro;
   const content = $('#content');
   content.replaceChildren();
+  if (page === 'vehicle') {
+    feedVehicle(new URLSearchParams(location.search).get('veiculo'));
+    return;
+  }
   if (page === 'home') {
     $('nav').replaceChildren();
     const start = element('a','Comece a sua avaliação','home-start');
