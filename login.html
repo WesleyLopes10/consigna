@@ -24,14 +24,42 @@ a:focus-visible { outline: 3px solid #172138; outline-offset: 3px }
 <main>
 <section aria-labelledby="title">
 <h1 id="title">Entrar no AvaliaTop</h1>
-<p>O acesso com e-mail e senha ainda será ativado.</p>
-<fieldset disabled aria-label="Dados de acesso">
-<label>E-mail<input type="email" autocomplete="username"></label>
-<label>Senha<input type="password" autocomplete="current-password"></label>
-<button type="button">Entrar</button>
-</fieldset>
+<p>Use a conta autorizada pela TopCar.</p>
+<form id="login"><fieldset aria-label="Dados de acesso">
+<label>E-mail<input name="email" type="email" required autocomplete="username"></label>
+<label>Senha<input name="password" type="password" required autocomplete="current-password"></label>
+<button type="submit">Entrar</button>
+</fieldset><p id="feedback" role="status"></p></form>
 <a href="./">Continuar sem login</a>
 </section>
 </main>
+<script type="module">
+import { supabase, profile } from './avaliatop-auth.js';
+const form = document.querySelector('#login');
+const feedback = document.querySelector('#feedback');
+form.addEventListener('submit',async event => {
+  event.preventDefault();
+  const submit = form.querySelector('button');
+  submit.disabled = true;
+  feedback.textContent = 'Entrando…';
+  try {
+    const {error} = await supabase.auth.signInWithPassword({email:form.email.value.trim(),password:form.password.value});
+    if (error) throw error;
+    if (!await profile()) {
+      await supabase.auth.signOut();
+      feedback.textContent = 'Esta conta ainda não tem acesso ao AvaliaTop.';
+      return;
+    }
+    const params = new URLSearchParams(location.search);
+    params.delete('pre-avaliacao');
+    if (!params.has('pagina')) params.set('pagina','feed');
+    location.replace('./?'+params);
+  } catch {
+    feedback.textContent = 'Não foi possível entrar. Confira os dados e tente novamente.';
+  } finally {
+    submit.disabled = false;
+  }
+});
+</script>
 </body>
 </html>

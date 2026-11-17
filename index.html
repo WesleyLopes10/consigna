@@ -902,7 +902,15 @@ const database = new Promise((resolve,reject) => {
   request.onerror = () => reject(request.error);
 });
 let vehicles = [], page = 'home', mediaUrls = [], dialogUrls = [];
-const master = () => $('#role').value === 'master';
+let accessProfile = null;
+const master = () => accessProfile === 'mestre' && $('#role').value === 'master';
+const masterRoutes = ['pending','unavailable','register','evaluation','consult'];
+function allowed(route) {
+  return route === 'home' || (accessProfile && (!masterRoutes.includes(route) || accessProfile === 'mestre'));
+}
+function openLogin() {
+  location.replace('./login.html'+location.search);
+}
 function element(tag, value, className) {
   const node = document.createElement(tag);
   if (value !== undefined) node.textContent = value;
@@ -966,7 +974,11 @@ function updateRoute(next,vehicleId) {
 function restoreRoute() {
   const params = new URLSearchParams(location.search);
   const route = Object.keys(pageRoutes).find(key => pageRoutes[key] === params.get('pagina')) || 'home';
-  const role = ['pending','unavailable','register','evaluation','consult'].includes(route) ? 'master' :
+  if (!allowed(route)) {
+    if (!accessProfile) return openLogin();
+    return show('feed');
+  }
+  const role = masterRoutes.includes(route) ? 'master' :
     route === 'home' ? 'home' : (master() ? 'master' : 'viewer');
   $('#role').value = role;
   if (page === 'evaluation') release(dialogUrls);
@@ -981,6 +993,11 @@ function restoreRoute() {
   }
 }
 function show(next) {
+  if (!allowed(next)) {
+    if (accessProfile) return;
+    updateRoute(next);
+    return openLogin();
+  }
   updateRoute(next);
   if (page === 'evaluation') release(dialogUrls);
   page = next;
@@ -1804,11 +1821,34 @@ $('#role').onchange = () => {
   show($('#role').value === 'home' ? 'home' : 'feed');
 };
 if (new URLSearchParams(location.search).has("pre-avaliacao")) customerForm();
-else readVehicles().then(result => {
-  vehicles = result;
+else startApp();
+async function startApp() {
+  const role = $('#role');
+  role.disabled = true;
+  try {
+    const auth = await import('./avaliatop-auth.js');
+    accessProfile = await auth.profile();
+    if (accessProfile) {
+      const logout = button('Sair',async () => {
+        try { await auth.supabase.auth.signOut({scope:'local'}); }
+        finally { location.replace('./'); }
+      });
+      logout.type = 'button';
+      role.closest('header').append(logout);
+      auth.supabase.auth.onAuthStateChange(event => {
+        if (event === 'SIGNED_OUT') location.replace('./');
+      });
+    }
+  } catch { /* Public access remains available. */ }
+  role.querySelector('[value="master"]').hidden = Boolean(accessProfile && accessProfile !== 'mestre');
+  role.disabled = false;
+  if (accessProfile) {
+    try { vehicles = await readVehicles(); }
+    catch { notice('O armazenamento local está indisponível.'); }
+  }
   restoreRoute();
   window.addEventListener('popstate',restoreRoute);
-}).catch(() => notice('O armazenamento local está indisponível.'));
+}
 </script></body></html>
 
 
