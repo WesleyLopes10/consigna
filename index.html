@@ -907,10 +907,10 @@ const database = new Promise((resolve,reject) => {
 });
 let vehicles = [], page = 'home', mediaUrls = [], dialogUrls = [];
 let accessProfile = null;
-const master = () => accessProfile === 'mestre' && page !== 'home';
+const master = () => ['mestre','avaliador'].includes(accessProfile) && page !== 'home';
 const masterRoutes = ['pending','unavailable','register','evaluation','consult'];
 function allowed(route) {
-  return route === 'home' || (accessProfile && (!masterRoutes.includes(route) || accessProfile === 'mestre'));
+  return route === 'home' || (accessProfile && (!masterRoutes.includes(route) || ['mestre','avaliador'].includes(accessProfile)));
 }
 function openLogin() {
   location.replace('./login.html'+location.search);
@@ -936,6 +936,7 @@ async function readVehicles() {
   });
 }
 async function save(vehicle,finalValue) {
+  if (finalValue !== undefined && accessProfile !== 'mestre') throw Error('Somente o Mestre pode definir o valor final.');
   const db = await database;
   await new Promise((resolve,reject) => {
     const transaction = db.transaction('vehicles','readwrite');
@@ -1585,7 +1586,7 @@ function details(vehicle) {
     container.append(video);
   }
   if (master() && vehicle.answers) showAssessment(vehicle,container);
-  if (evaluating) {
+  if (evaluating && accessProfile === 'mestre') {
     const form = element('form');
     const label = element('label','Valor da avaliação em reais');
     const input = element('input');
@@ -1597,7 +1598,7 @@ function details(vehicle) {
     form.append(element('h3','Avaliação final'),label,submit,feedback);
     form.onsubmit = async event => {
       event.preventDefault();
-      if (!master()) return;
+      if (accessProfile !== 'mestre') return;
       submit.disabled = true;
       try {
         await save(vehicle,input.valueAsNumber);
