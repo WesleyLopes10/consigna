@@ -650,7 +650,7 @@ function customerForm() {
         illustration.dataset.viewGroup = name === 'Motor e câmbio' ? 'powertrain' : 'running';
         illustration.alt = name;
         section.append(illustration);
-      } else if (!mechanicalGroup) section.append(inspectionDiagram(index));
+      } else if (!mechanicalGroup && (needsPhoto(index) || photoOptionalItems.has(title))) section.append(inspectionDiagram(index));
       if (index < 2) {
         section.append(element('p',index === 0 ? 'Vista de fora, pelo lado esquerdo do carro.' : 'Vista de fora, pelo lado direito do carro.','pre-diagram-caption'));
       }
