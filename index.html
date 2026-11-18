@@ -1414,9 +1414,12 @@ function fipeHistory(row) {
         const axisLow = Math.min(...plotted.map(([,value])=>value));
         const axisHigh = Math.max(...plotted.map(([,value])=>value));
         const span = Math.max(axisHigh-axisLow,1);
-        const width = Math.max(540,160+plotted.length*55);
+        const width = 760;
         svg.setAttribute('viewBox','0 0 '+width+' 250');
-        svg.style.minWidth = width+'px';
+        svg.style.minWidth = '0';
+        svg.style.width = '100%';
+        svg.style.height = 'auto';
+        const labelInterval = Math.max(1,Math.ceil(plotted.length/6));
         const coords = plotted.map(([,value],index)=>[115+(width-155)*index/Math.max(1,plotted.length-1),215-185*(value-axisLow)/span]);
         [30,122.5,215].forEach((y,index)=>{
           shape('line',{x1:117,y1:y,x2:width-22,y2:y,stroke:'#dce3ed','stroke-dasharray':'4 4'});
@@ -1444,14 +1447,14 @@ function fipeHistory(row) {
           hit.addEventListener('keydown',event=>{
             if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); reveal(); }
           });
-          shape('text',{x,y:240,'text-anchor':'middle','font-size':11,fill:'#4d5b70'}).textContent=compactMonth.format(new Date(date+'-01T00:00:00Z'));
+          if (index % labelInterval === 0 || index === plotted.length-1) shape('text',{x,y:240,'text-anchor':'middle','font-size':11,fill:'#4d5b70'}).textContent=compactMonth.format(new Date(date+'-01T00:00:00Z'));
         });
         const scroll = element('div',undefined,'history-scroll');
         scroll.tabIndex = 0;
         scroll.setAttribute('aria-label','Gráfico mensal da FIPE');
         scroll.append(svg);
         view.replaceChildren(summary,detail,scroll);
-        scroll.scrollLeft = scroll.scrollWidth;
+        scroll.scrollLeft = 0;
       }
       [['6 meses',6],['1 ano',12],['2 anos',24],['5 anos',60],['Tudo',Infinity]].forEach(([name,limit])=>{
         const control = button(name,()=>draw(limit,control));
