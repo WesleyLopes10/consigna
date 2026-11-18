@@ -644,7 +644,13 @@ function customerForm() {
       const group = element('fieldset',undefined,'pre-question');
       const choices = element('div',undefined,'pre-choices');
       group.append(element('legend',title));
-      if (needsPhoto(index)) section.append(inspectionDiagram(index));
+      const mechanicalGroup = name === 'Motor e câmbio' || name === 'Suspensão, pneus e freios';
+      if (mechanicalGroup && index === indices[0]) {
+        const illustration = inspectionDiagram(index);
+        illustration.dataset.viewGroup = name === 'Motor e câmbio' ? 'powertrain' : 'running';
+        illustration.alt = name;
+        section.append(illustration);
+      } else if (!mechanicalGroup) section.append(inspectionDiagram(index));
       if (index < 2) {
         section.append(element('p',index === 0 ? 'Vista de fora, pelo lado esquerdo do carro.' : 'Vista de fora, pelo lado direito do carro.','pre-diagram-caption'));
       }
@@ -754,7 +760,7 @@ function customerForm() {
   }).then(views => {
     const mapping = {0:'left',1:'right',2:'front',3:'rear'};
     form.querySelectorAll('.inspection-art').forEach(image => {
-      const key = mapping[image.dataset.viewIndex];
+      const key = image.dataset.viewGroup || mapping[image.dataset.viewIndex];
       if (key && views[key]) image.src=views[key];
     });
   }).catch(() => {});
