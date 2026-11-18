@@ -4,5 +4,5 @@ export async function profile() {
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) return null;
   const { data } = await supabase.from('avaliatop_perfis').select('perfil').eq('usuario_id',user.id).maybeSingle();
-  return ['mestre','visualizador'].includes(data?.perfil) ? data.perfil : null;
+  return ['mestre','visualizador','avaliador'].includes(data?.perfil) ? data.perfil : null;
 }
