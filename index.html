@@ -1363,7 +1363,7 @@ function fipeHistory(row) {
       const view = element('div');
       const month = new Intl.DateTimeFormat('pt-BR',{month:'short',year:'numeric',timeZone:'UTC'});
       const label = date => month.format(new Date(date+'-01T00:00:00Z'));
-      let future = [], currentLimit = 12, selectedPeriod;
+      let future = [], currentLimit = Infinity, selectedPeriod;
       const feedback = element('p');
       feedback.setAttribute('role','status');
       async function project() {
@@ -1447,14 +1447,14 @@ function fipeHistory(row) {
         view.replaceChildren(summary,detail,scroll);
         scroll.scrollLeft = scroll.scrollWidth;
       }
-      [['6 meses',6],['1 ano',12],['2 anos',24],['Tudo',Infinity]].forEach(([name,limit])=>{
+      [['6 meses',6],['1 ano',12],['2 anos',24],['5 anos',60],['Tudo',Infinity]].forEach(([name,limit])=>{
         const control = button(name,()=>draw(limit,control));
         periods.append(control);
       });
       chart.append(periods,view,feedback);
       if (points.length >= 3) project();
-      draw(12,periods.children[1]);
-      status.textContent = '';
+      draw(Infinity,periods.lastElementChild);
+      status.textContent = 'Histórico disponível: '+label(points[0][0])+' a '+label(points.at(-1)[0])+' · '+points.length+' referências mensais.';
       action.textContent = 'Ocultar desvalorização';
       action.setAttribute('aria-expanded','true');
     } catch {
