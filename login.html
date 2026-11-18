@@ -26,6 +26,11 @@ section{box-shadow:0 18px 48px #46132217;border-color:#eadcde}
 button[type=submit]{background:#ab1628;color:white;border-color:#ab1628;font-weight:700;min-height:44px;cursor:pointer}
 button:disabled{opacity:.65}
 section>a{background:white;color:#ab1628;border:1px solid #eadcde}
+.password-field{position:relative;display:block}
+.password-field input{padding-right:52px}
+.password-field .password-toggle{position:absolute;right:5px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:42px;height:38px;margin:0;padding:0;border:0;background:transparent;color:#47566d;cursor:pointer}
+.password-toggle:focus-visible{outline:2px solid #ab1628;outline-offset:1px}
+.eye-slash[hidden]{display:none}
 </style>
 </head>
 <body>
@@ -36,12 +41,23 @@ section>a{background:white;color:#ab1628;border:1px solid #eadcde}
 <p>Use a conta autorizada pela TopCar.</p>
 <form id="login"><fieldset aria-label="Dados de acesso">
 <label>E-mail<input name="email" type="email" required autocomplete="username"></label>
-<label>Senha<input name="password" type="password" required autocomplete="current-password"></label>
+<label>Senha<span class="password-field"><input name="password" type="password" required autocomplete="current-password"><button class="password-toggle" type="button" aria-label="Mostrar senha" aria-pressed="false"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path class="eye-slash" d="m3 3 18 18" hidden/></svg></button></span></label>
 <button type="submit">Entrar</button>
 </fieldset><p id="feedback" role="status"></p></form>
 <a href="./">Continuar sem login</a>
 </section>
 </main>
+<script>
+const toggle = document.querySelector('.password-toggle');
+const password = document.querySelector('input[type="password"]');
+toggle.addEventListener('click',() => {
+  const visible = password.type === 'password';
+  password.type = visible ? 'text' : 'password';
+  toggle.setAttribute('aria-label',visible ? 'Ocultar senha' : 'Mostrar senha');
+  toggle.setAttribute('aria-pressed',String(visible));
+  toggle.querySelector('.eye-slash').toggleAttribute('hidden',!visible);
+});
+</script>
 <script type="module">
 import { supabase, profile } from './avaliatop-auth.js';
 const form = document.querySelector('#login');
