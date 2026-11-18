@@ -110,6 +110,7 @@ module.exports = async (req,res) => {
     const distinct = [...new Map(cars.map(car => [new URL(car.url).searchParams.get('cod'),car])).values()];
     if (hunter) {
       const candidates = distinct.filter(car=>Number(car.modelYear)>=yearMin && Number(car.modelYear)<=yearMax && car.amount>=priceMin && car.amount<=priceMax).slice(0,30);
+      if (!candidates.length) return res.json({cars:[],searchUrl:url.href,aiValidated:true});
       const accepted = await approvedCodes(key,model,'','',candidates,{city,seller,yearMin,yearMax});
       if (accepted===null) return res.status(502).json({error:'Não foi possível validar os anúncios com IA. Tente novamente.'});
       return res.json({cars:candidates.filter((_,index)=>accepted.has(index)).map(({evidence,...car})=>car),searchUrl:url.href,aiValidated:true});
