@@ -62,7 +62,7 @@ module.exports = async (req,res) => {
       if (vehicle.id!==id) throw Error('Ficha inválida.');
       const files = req.body.files;
       if (!Array.isArray(files) || files.length>51 || files.some(f=>!f || !/^(photo|video|photos-\d+)$/.test(f.slot) || !Number.isFinite(f.size) || f.size<=0 ||
-        f.size>(f.slot==='video'?100:8)*1024**2 || !(f.slot==='video'?/^video\//:/^image\//).test(f.type))) return res.status(400).json({error:'Arquivo inválido.'});
+        f.size>(f.slot==='video'?300:5)*1024**2 || !(f.slot==='video'?/^video\//:/^image\//).test(f.type))) return res.status(400).json({error:'Arquivo inválido.'});
       const paths = Object.fromEntries(files.map(f=>[f.slot,id+'/'+f.slot]));
       const data = {id,model:vehicle.model,plate:vehicle.plate,year:vehicle.year,reportedYear:vehicle.reportedYear,
         km:vehicle.km,owner:vehicle.owner,phone:vehicle.phone,city:vehicle.city,vehicleKind:vehicle.vehicleKind,
