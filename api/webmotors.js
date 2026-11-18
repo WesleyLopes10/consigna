@@ -48,6 +48,10 @@ module.exports = async (req,res) => {
     const html=page.data?.rawHtml || '';
     const markdown=page.data?.markdown || '';
     if (!html && !markdown) throw Error('A Webmotors não retornou conteúdo para análise.');
+    const visibleText=markdown || html.replace(/<[^>]*>/g,' ');
+    if (/access denied|verify (?:you are|you're) human|captcha|checking your browser|request (?:was )?blocked/i.test(visibleText)) {
+      return res.status(502).json({error:'A Webmotors retornou uma verificação de acesso ao scraping. Os anúncios não puderam ser consultados.',searchUrl:url.href});
+    }
     const text=markdown+'\n'+html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').slice(0,120000);
     const schema={type:'object',properties:{cars:{type:'array',items:{type:'object',properties:{
       title:{type:'string'},amount:{type:'number'},year:{type:'string'},mileage:{type:'string'},location:{type:'string'},photo:{type:'string'},url:{type:'string'},privateSeller:{type:'boolean'},sellerEvidence:{type:'string'}
@@ -64,6 +68,9 @@ module.exports = async (req,res) => {
     const content=output.output?.flatMap(item=>item.content||[]).find(item=>item.type==='output_text')?.text;
     const extracted=JSON.parse(content||'{}');
     if (!Array.isArray(extracted.cars)) throw Error('Resposta de anúncios incompleta.');
+    if (!extracted.cars.length && !/nenhum (?:ve[ií]culo|resultado|an[uú]ncio)|0 ve[ií]culos encontrados|n[aã]o encontramos/i.test(visibleText)) {
+      return res.status(502).json({error:'O scraping da Webmotors não encontrou cards legíveis. A resposta recebida não confirma ausência de anúncios.',searchUrl:url.href});
+    }
     const cars=extracted.cars.flatMap(car=>{
       try {
         const link=new URL(car.url,url), year=Number(car.year.match(/\d{4}/g)?.at(-1));
@@ -81,6 +88,7 @@ module.exports = async (req,res) => {
         return [{title:car.title,amount:car.amount,year:car.year,mileage:car.mileage,location:car.location,photo,url:link.href}];
       } catch { return []; }
     });
+    if (extracted.cars.length && !cars.length) return res.status(502).json({error:'Os anúncios extraídos da Webmotors não passaram pela conferência de link, ano, cidade ou vendedor particular.',searchUrl:url.href});
     return res.json({cars:[...new Map(cars.map(car=>[car.url,car])).values()],searchUrl:url.href,aiValidated:true,
       warning:'Resultados da página consultada na Webmotors em Mato Grosso. Modelo, preço e vendedor validados pela IA.'});
   } catch(error) {
