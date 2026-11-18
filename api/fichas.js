@@ -57,6 +57,17 @@ module.exports = async (req,res) => {
     const {action,id} = req.body || {};
     if (!validId(id)) return res.status(400).json({error:'Identificador inválido.'});
     const url = '/rest/v1/avaliatop_fichas?id=eq.'+id;
+    if (action==='crm-create') {
+      if (!['mestre','avaliador'].includes(kind)) return res.status(403).json({error:'Acesso restrito.'});
+      const lead=req.body.lead || {};
+      if (typeof lead.model!=='string' || !lead.model.trim() || lead.model.length>200 ||
+          ['owner','phone','plate'].some(key=>lead[key]!=null && (typeof lead[key]!=='string' || lead[key].length>120))) return res.status(400).json({error:'Confira os dados do contato.'});
+      await request('/rest/v1/avaliatop_fichas',{method:'POST',body:JSON.stringify({id,pronta:true,dados:{
+        id,model:lead.model.trim(),owner:lead.owner||'',phone:lead.phone||'',plate:lead.plate||'',
+        created:Date.now(),crmStage:'prospectar',photos:[]
+      }})});
+      return res.json({ok:true});
+    }
     if (action==='prepare') {
       const vehicle = vehicleInput(req.body.vehicle);
       if (vehicle.id!==id) throw Error('Ficha inválida.');
@@ -99,8 +110,9 @@ module.exports = async (req,res) => {
       if (!updated.length) return res.status(409).json({error:'Esta ficha já foi avaliada.'});
     } else if (action==='update') {
       const patch=req.body.patch || {};
-      if (Object.keys(patch).some(k=>!['vehicleKind','plateLookup','usedMarketLookup','purchaseSuggestion'].includes(k))) return res.status(400).json({error:'Alteração inválida.'});
+      if (Object.keys(patch).some(k=>!['vehicleKind','plateLookup','usedMarketLookup','purchaseSuggestion','crmStage'].includes(k))) return res.status(400).json({error:'Alteração inválida.'});
       if (patch.vehicleKind && !['Manual','Automático','Híbrido','Elétrico'].includes(patch.vehicleKind)) return res.status(400).end();
+      if (patch.crmStage && !['prospectar','negociacao','avaliacao','consignado','vendido'].includes(patch.crmStage)) return res.status(400).json({error:'Etapa inválida.'});
       const revision=row.revisao;
       const updated=await request(url+'&revisao=eq.'+revision,{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify({dados:{...row.dados,...patch},revisao:revision+1})});
       if (!updated.length) return res.status(409).json({error:'Ficha alterada em outra sessão. Atualize a página.'});
