@@ -664,7 +664,7 @@ function customerForm() {
     } catch {
       screen.remove();
       form.hidden = false;
-      notice('Não foi possível concluir. Confira as fotos e tente novamente.');
+      notice('Não foi possível enviar a ficha ao servidor. Confira sua conexão e tente novamente.');
     } finally {
       next.disabled = back.disabled = false;
     }
@@ -691,14 +691,7 @@ async function importAssessment(file) {
   const id = 'pre-'+report.id;
   const vehicle = Object.fromEntries(fields.map(key => [key,report[key]]));
   Object.assign(vehicle,{id,created:Date.now(),answers:report.answers,photo:decode(report.photo,'image',8),video:decode(report.video,'video',100)});
-  const db = await database;
-  await new Promise((resolve,reject) => {
-    const transaction = db.transaction('vehicles','readwrite');
-    transaction.oncomplete = resolve;
-    transaction.onabort = () => reject(transaction.error);
-    transaction.objectStore('vehicles').add(vehicle);
-  });
-  vehicles = await readVehicles();
+  await save(vehicle);
 }
 
 function repairRows(answers) {
@@ -896,15 +889,6 @@ const sample = [
   {id:'demo-2',model:'Ford EcoSport',trim:'Titanium 1.6',year:2013,km:119000,value:38900,evaluated:Date.now()-172800000},
   {id:'demo-3',model:'Chevrolet Spin',trim:'LTZ 1.8 automática',year:2013,km:134000}
 ];
-const database = new Promise((resolve,reject) => {
-  const request = indexedDB.open('consigna',1);
-  request.onupgradeneeded = () => {
-    const store = request.result.createObjectStore('vehicles',{keyPath:'id'});
-    sample.forEach(vehicle => store.add(vehicle));
-  };
-  request.onsuccess = () => resolve(request.result);
-  request.onerror = () => reject(request.error);
-});
 let vehicles = [], page = 'home', mediaUrls = [], dialogUrls = [];
 let accessProfile = null;
 const master = () => ['mestre','avaliador'].includes(accessProfile) && page !== 'home';
@@ -927,42 +911,47 @@ function button(label, action, style) {
   node.onclick = action;
   return node;
 }
+async function serverRequest(body) {
+  const {supabase} = await import('./avaliatop-auth.js');
+  const {data:{session}} = await supabase.auth.getSession();
+  const response = await fetch('./api/fichas',{method:body?'POST':'GET',cache:'no-store',
+    headers:{...(body?{'Content-Type':'application/json'}:{}),...(session?{Authorization:'Bearer '+session.access_token}:{})},
+    ...(body?{body:JSON.stringify(body)}:{})});
+  const data=await response.json();
+  if (!response.ok) throw Error(data.error || 'Não foi possível acessar o servidor.');
+  return data;
+}
 async function readVehicles() {
-  const db = await database;
-  return new Promise((resolve,reject) => {
-    const request = db.transaction('vehicles').objectStore('vehicles').getAll();
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
+  return (await serverRequest()).vehicles;
 }
 async function save(vehicle,finalValue) {
-  if (finalValue !== undefined && accessProfile !== 'mestre') throw Error('Somente o Mestre pode definir o valor final.');
-  const db = await database;
-  await new Promise((resolve,reject) => {
-    const transaction = db.transaction('vehicles','readwrite');
-    transaction.oncomplete = resolve;
-    transaction.onabort = () => reject(transaction.error);
-    const store = transaction.objectStore('vehicles');
-    if (finalValue === undefined) {
-      store.put(vehicle);
-      return;
+  if (finalValue !== undefined) {
+    await serverRequest({action:'evaluate',id:vehicle.id,value:finalValue});
+  } else if (vehicle.photo instanceof Blob || vehicle.video instanceof Blob) {
+    const {supabase} = await import('./avaliatop-auth.js');
+    const mediaFiles = (vehicle.photos||[]).map((file,index)=>({slot:'photos-'+index,file}));
+    if (!mediaFiles.length && vehicle.photo instanceof Blob) mediaFiles.push({slot:'photo',file:vehicle.photo});
+    if (vehicle.video instanceof Blob) mediaFiles.push({slot:'video',file:vehicle.video});
+    const metadata = {...vehicle};
+    delete metadata.photo;
+    delete metadata.photos;
+    delete metadata.video;
+    const {uploads} = await serverRequest({action:'prepare',id:vehicle.id,vehicle:metadata,
+      files:mediaFiles.map(({slot,file})=>({slot,size:file.size,type:file.type}))});
+    for (const upload of uploads) {
+      const {file}=mediaFiles.find(item=>item.slot===upload.slot);
+      const {error}=await supabase.storage.from('avaliatop-midias').uploadToSignedUrl(upload.path,upload.token,file,{contentType:file.type});
+      if (error) throw Error('Não foi possível enviar a mídia. Tente novamente.');
     }
-    const request = store.getAll();
-    request.onsuccess = () => {
-      const current = request.result.find(item => item.id === vehicle.id);
-      if (!current?.answers?.length || current.evaluated) {
-        transaction.abort();
-        return;
-      }
-      const last = request.result.reduce((max,item) => Math.max(max,Number(item.code?.match(/^COD(\d+)$/)?.[1] || 0)),0);
-      const code = 'COD'+String(last+1).padStart(4,'0');
-      store.put({...current,code,value:finalValue,evaluated:Date.now()});
-    };
-  });
-  vehicles = await readVehicles();
+    await serverRequest({action:'complete',id:vehicle.id});
+  } else {
+    await serverRequest({action:'availability',id:vehicle.id,unavailable:vehicle.unavailable});
+  }
+  if (accessProfile) vehicles = await readVehicles();
 }
 function notice(message) { $('#status').textContent = message; }
 function media(blob, urls) {
+  if (typeof blob === 'string') return blob;
   const url = URL.createObjectURL(blob);
   urls.push(url);
   return url;
@@ -991,7 +980,7 @@ function restoreRoute() {
   if (route === 'evaluation') {
     const vehicle = vehicles.find(item => item.id === params.get('veiculo') && !item.evaluated && item.answers?.length);
     if (vehicle) details(vehicle);
-    else notice('Avaliação pendente não encontrada neste navegador.');
+    else notice('Avaliação pendente não encontrada no servidor.');
   }
 }
 function show(next) {
@@ -1025,23 +1014,8 @@ function description(vehicle) {
 }
 
 async function saveMarketLookup(vehicle,field,data) {
-  const db = await database;
   const plateLookup = {plate:vehicle.plate,data,consultedAt:Date.now()};
-  await new Promise((resolve,reject) => {
-    const transaction = db.transaction('vehicles','readwrite');
-    transaction.oncomplete = resolve;
-    transaction.onabort = () => reject(transaction.error || Error('Ficha alterada'));
-    const store = transaction.objectStore('vehicles');
-    const request = store.get(vehicle.id);
-    request.onsuccess = () => {
-      const current = request.result;
-      if (!current || current.plate !== vehicle.plate) {
-        transaction.abort();
-        return;
-      }
-      store.put({...current,[field]:plateLookup});
-    };
-  });
+  await serverRequest({action:'update',id:vehicle.id,patch:{[field]:plateLookup}});
   vehicles = await readVehicles();
   return plateLookup;
 }
@@ -1519,19 +1493,7 @@ function details(vehicle) {
       const kind = gear.value;
       saveGear.disabled = true;
       try {
-        const db = await database;
-        await new Promise((resolve,reject) => {
-          const transaction = db.transaction('vehicles','readwrite');
-          transaction.oncomplete = resolve;
-          transaction.onabort = () => reject(transaction.error);
-          const store = transaction.objectStore('vehicles');
-          const request = store.get(vehicle.id);
-          request.onsuccess = () => {
-            const current = request.result;
-            if (!current || current.evaluated) { transaction.abort(); return; }
-            store.put({...current,vehicleKind:kind});
-          };
-        });
+        await serverRequest({action:'update',id:vehicle.id,patch:{vehicleKind:kind}});
         vehicles = await readVehicles();
         if (master() && info.isConnected) {
           details(vehicles.find(item=>item.id===vehicle.id));
@@ -1909,7 +1871,7 @@ async function startApp() {
   } catch { accessProfile = null; }
   if (accessProfile) {
     try { vehicles = await readVehicles(); }
-    catch { notice('O armazenamento local está indisponível.'); }
+    catch { notice('Não foi possível carregar as fichas do servidor.'); }
   }
   restoreRoute();
   window.addEventListener('popstate',restoreRoute);
