@@ -73,7 +73,9 @@ module.exports = async (req,res) => {
       await request('/rest/v1/avaliatop_fichas',{method:'POST',body:JSON.stringify({id,dados:data})});
       const uploads = await Promise.all(files.map(async f=>{
         const signed=await request('/storage/v1/object/upload/sign/'+bucket+'/'+paths[f.slot],{method:'POST',body:'{}'});
-        return {slot:f.slot,path:paths[f.slot],token:signed.token};
+        const token = signed.token || new URL(signed.url,root+'/storage/v1').searchParams.get('token');
+        if (!token) throw Error('Não foi possível autorizar o envio da mídia.');
+        return {slot:f.slot,path:paths[f.slot],token};
       }));
       return res.json({uploads});
     }

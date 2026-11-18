@@ -680,10 +680,10 @@ function customerForm() {
       actions.append(button('Baixe sua pré-avaliação',() => downloadFile(pdf,'avalia-top-primeira-avaliacao.pdf'),'primary'),contact);
       screen.classList.add('customer-result');
       screen.replaceChildren(artwork,element('h2','Sua pré-avaliação está pronta'),actions);
-    } catch {
+    } catch (error) {
       screen.remove();
       form.hidden = false;
-      notice('Não foi possível enviar a ficha ao servidor. Confira sua conexão e tente novamente.');
+      notice(error.message || 'Não foi possível enviar a ficha ao servidor. Tente novamente.');
     } finally {
       next.disabled = back.disabled = false;
     }
@@ -960,7 +960,7 @@ async function save(vehicle,finalValue) {
     for (const upload of uploads) {
       const {file}=mediaFiles.find(item=>item.slot===upload.slot);
       const {error}=await supabase.storage.from('avaliatop-midias').uploadToSignedUrl(upload.path,upload.token,file,{contentType:file.type});
-      if (error) throw Error('Não foi possível enviar a mídia. Tente novamente.');
+      if (error) throw Error('Falha ao enviar '+(upload.slot === 'video' ? 'o vídeo' : 'uma foto')+': '+error.message);
     }
     await serverRequest({action:'complete',id:vehicle.id});
   } else {
