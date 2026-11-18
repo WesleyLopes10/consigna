@@ -1506,18 +1506,21 @@ async function marketCards(vehicle,container,{standalone=false} = {}) {
     }) : entries;
     const kind = vehicle.vehicleKind;
     const terms = {Manual:/\b(manual|mecanico|mecanica|mec|mt)\b/i,'Automático':/\b(automatico|automatica|aut|at|cvt|dct|automatizado)\b/i,'Híbrido':/\b(hibrido|hibrida|hybrid|hev|phev|mhev)\b/i,'Elétrico':/\b(eletrico|eletrica|ev|bev)\b/i};
-    const fipe = terms[kind] ? versions.filter(row => {
+    const fipe = (terms[kind] ? versions.filter(row => {
       const code = String(row.code).replace(/\D/g,'');
       if (comfort && kind === 'Manual') return code === '0152188';
       if (comfort && kind === 'Automático') return code === '0152170';
+      const modelText = String(row.model || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+      if (kind === 'Manual') return !terms['Automático'].test(modelText) && !terms['Elétrico'].test(modelText) && !terms['Híbrido'].test(modelText);
       return terms[kind].test([row.model,['Híbrido','Elétrico'].includes(kind) ? row.fuel : ''].join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g,''));
-    }) : versions;
+    }) : versions).slice().sort((a,b) => Number(Boolean(b.historyId))-Number(Boolean(a.historyId)) || (b.score||0)-(a.score||0));
     const references = element('div',undefined,'market-references');
     if (!fipe.length) results.append(element('p',kind ? 'Nenhuma referência FIPE com indicação de '+kind.toLowerCase()+'.' : 'A API não retornou valor FIPE para esta placa.'));
     fipe.forEach((row,index) => {
       const card = element('article',undefined,'market-card');
       if (comfort && ['0152188','0152170'].includes(String(row.code).replace(/\D/g,''))) card.append(element('strong',String(row.code).replace(/\D/g,'') === '0152188' ? 'Câmbio manual' : 'Câmbio automático'));
-      else if (index === 0) card.append(element('strong','Melhor correspondência'));
+      else if (index === 0) card.append(element('strong',row.historyId ? 'Referência com histórico FIPE' : 'Melhor correspondência'));
+      if (kind === 'Manual' && !comfort && !terms.Manual.test(String(row.model || '').normalize('NFD').replace(/[\u0300-\u036f]/g,''))) card.append(element('p','Câmbio não especificado na referência FIPE. Confira a versão.'));
       card.classList.add('fipe-card');
       card.append(element('h4',row.model || data.model));
       const metadata = element('dl',undefined,'fipe-metadata');
