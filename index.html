@@ -911,7 +911,7 @@ const sample = [
 let vehicles = [], page = 'home', mediaUrls = [], dialogUrls = [];
 let accessProfile = null;
 const master = () => ['mestre','avaliador'].includes(accessProfile) && page !== 'home';
-const masterRoutes = ['pending','unavailable','register','evaluation','consult'];
+const masterRoutes = ['pending','unavailable','register','evaluation','consult','hunter'];
 function allowed(route) {
   return route === 'home' || (accessProfile && (!masterRoutes.includes(route) || ['mestre','avaliador'].includes(accessProfile)));
 }
@@ -976,7 +976,7 @@ function media(blob, urls) {
   return url;
 }
 function release(urls) { urls.splice(0).forEach(url => URL.revokeObjectURL(url)); }
-const pageRoutes = {home:'',feed:'feed',pending:'pendentes',unavailable:'retirados',register:'pre-avaliacoes',evaluation:'avaliar',consult:'consulta',vehicle:'veiculo'};
+const pageRoutes = {home:'',feed:'feed',pending:'pendentes',unavailable:'retirados',register:'pre-avaliacoes',evaluation:'avaliar',hunter:'cacador',consult:'consulta',vehicle:'veiculo'};
 function updateRoute(next,vehicleId) {
   const url = new URL(location.href);
   url.search = '';
@@ -1661,11 +1661,12 @@ const pages = {
   feed:['Feed de avaliações','Consulte os veículos avaliados para consignação.'],
   pending:['Pendentes de avaliação','Registre o valor para publicar o veículo no feed.'],
   unavailable:['Veículos indisponíveis','Consulte os veículos retirados do feed e recoloque-os quando estiverem disponíveis.'],
+  hunter:['Caçador','Busque veículos no Usado Fácil por ano, preço, cidade e vendedor.'],
   consult:['Consulta por placa','Veja os dados do veículo, a FIPE e anúncios do Usado Fácil.'],
   register:['Pré-avaliação','Abra o formulário ou copie o link para compartilhar.']
 };
-const navigationIcons = {feed:'▤',pending:'◷',unavailable:'⊘',register:'＋',consult:'⌕'};
-const navigationLabels = {home:'Início',feed:'Feed',pending:'Pendentes',unavailable:'Retirados',register:'Pré-avaliação',consult:'Consulta'};
+const navigationIcons = {feed:'▤',pending:'◷',unavailable:'⊘',register:'＋',consult:'⌕',hunter:'⌕'};
+const navigationLabels = {home:'Início',feed:'Feed',pending:'Pendentes',unavailable:'Retirados',register:'Pré-avaliação',consult:'Consulta',hunter:'Caçador'};
 function vehicleIssues(data) {
   const card = element('section',undefined,'assessment-panel');
   const status = element('p','Pesquisando problemas recorrentes e recalls…');
@@ -1718,6 +1719,66 @@ function vehicleIssues(data) {
   }
   load();
   return card;
+}
+function renderHunter(content) {
+  const form = element('form',undefined,'assessment-panel');
+  const controls = {};
+  for (const [name,label,type] of [['modelo','Nome do carro','text'],['anomin','Ano-modelo de','number'],['anomax','Ano-modelo até','number'],['precomin','Preço mínimo (R$)','number'],['precomax','Preço máximo (R$)','number'],['cidade','Cidade','text']]) {
+    const field = element('label',label);
+    const input = element('input');
+    Object.assign(input,{name,type,required:name==='modelo'});
+    if (type==='number') { input.min='0'; input.step='1'; }
+    field.append(input);
+    form.append(field);
+    controls[name]=input;
+  }
+  controls.cidade.placeholder = 'Todas as cidades';
+  const sellerLabel = element('label','Vendedor');
+  const seller = element('select');
+  seller.append(new Option('Geral','geral'),new Option('Particular','particular'));
+  sellerLabel.append(seller);
+  const submit = element('button','Caçar veículos','primary');
+  submit.type='submit';
+  const status = element('p');
+  status.setAttribute('role','status');
+  const results = element('div',undefined,'market-references');
+  form.append(sellerLabel,submit);
+  content.append(form,status,results);
+  form.onsubmit = async event => {
+    event.preventDefault();
+    if (submit.disabled) return;
+    if ((controls.anomin.value && controls.anomax.value && +controls.anomin.value>+controls.anomax.value) ||
+      (controls.precomin.value && controls.precomax.value && +controls.precomin.value>+controls.precomax.value)) {
+      status.textContent='O início da faixa deve ser menor ou igual ao final.';
+      return;
+    }
+    submit.disabled=true;
+    results.replaceChildren();
+    status.textContent='Buscando anúncios e analisando os cards com IA…';
+    const params = new URLSearchParams({modo:'cacador',vendedor:seller.value});
+    Object.entries(controls).forEach(([name,input])=>{if(input.value.trim()) params.set(name,input.value.trim());});
+    try {
+      const response=await fetch('./api/usado-facil?'+params,{cache:'no-store'});
+      const data=await response.json();
+      if (!response.ok) throw Error(data.error || 'Não foi possível concluir a busca.');
+      for (const car of data.cars) {
+        const card=element('article',undefined,'market-card');
+        if (car.photo) {
+          const photo=element('img',undefined,'market-listing-photo');
+          Object.assign(photo,{src:car.photo,alt:car.title,loading:'lazy',referrerPolicy:'no-referrer'});
+          card.append(photo);
+        }
+        card.append(element('h3',car.title),element('p',money.format(car.amount),'market-price'),
+          element('p',[car.year,car.mileage,car.location].filter(Boolean).join(' · ')));
+        const link=element('a','Ver anúncio','download-photo');
+        Object.assign(link,{href:car.url,target:'_blank',rel:'noopener noreferrer'});
+        card.append(link);
+        results.append(card);
+      }
+      status.textContent=data.cars.length+' anúncio(s) encontrado(s) nesta página da busca.';
+    } catch(error) { status.textContent=error.message; }
+    finally { submit.disabled=false; }
+  };
 }
 function renderPlateConsultation(content) {
   const form = element('form',undefined,'assessment-panel');
@@ -1797,6 +1858,7 @@ function render() {
     content.append(hero);
     return;
   }
+  if (page === 'hunter' && master()) { renderHunter(content); return; }
   if (page === 'consult' && master()) {
     renderPlateConsultation(content);
     return;
