@@ -636,6 +636,7 @@ function customerForm() {
       lookup.disabled = false;
     }
   });
+  lookup.classList.add('primary');
   plate.closest('label').after(lookup,lookupStatus);
   const steps = [...form.querySelectorAll('fieldset')];
   let step = 0;
