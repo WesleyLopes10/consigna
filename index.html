@@ -1670,7 +1670,7 @@ const pages = {
   feed:['Feed de avaliações','Consulte os veículos avaliados para consignação.'],
   pending:['Pendentes de avaliação','Registre o valor para publicar o veículo no feed.'],
   unavailable:['Veículos indisponíveis','Consulte os veículos retirados do feed e recoloque-os quando estiverem disponíveis.'],
-  hunter:['Caçador','Busque veículos no Usado Fácil por ano, preço, cidade e vendedor.'],
+  hunter:['Caçador','Busque veículos no Usado Fácil e na Webmotors por ano, preço, cidade e vendedor.'],
   consult:['Consulta por placa','Veja os dados do veículo, a FIPE e anúncios do Usado Fácil.'],
   register:['Pré-avaliação','Abra o formulário ou copie o link para compartilhar.']
 };
@@ -1748,6 +1748,11 @@ function renderHunter(content) {
   controls.precomin.placeholder = '10.000';
   controls.precomax.placeholder = '60.000';
   controls.cidade.placeholder = 'Todas as cidades';
+  const sourceLabel = element('label','Onde buscar');
+  const source = element('select');
+  source.append(new Option('Usado Fácil','usado-facil'),new Option('Webmotors · Mato Grosso','webmotors'));
+  sourceLabel.append(source);
+  form.append(sourceLabel);
   const sellerLabel = element('label','Vendedor');
   const seller = element('select');
   seller.append(new Option('Geral','geral'),new Option('Particular','particular'));
@@ -1774,7 +1779,7 @@ function renderHunter(content) {
     const params = new URLSearchParams({modo:'cacador',vendedor:seller.value});
     Object.entries(controls).forEach(([name,input])=>{if(input.value.trim()) params.set(name,input.value.trim());});
     try {
-      const response=await fetch('./api/usado-facil?'+params,{cache:'no-store'});
+      const response=await fetch('./api/'+source.value+'?'+params,{cache:'no-store'});
       const data=await response.json();
       if (!response.ok) throw Error(data.error || 'Não foi possível concluir a busca.');
       for (const car of data.cars) {
@@ -1791,7 +1796,7 @@ function renderHunter(content) {
         card.append(link);
         results.append(card);
       }
-      status.textContent=data.cars.length+' anúncio(s) encontrado(s) nesta página da busca.';
+      status.textContent=data.cars.length+' anúncio(s) encontrado(s) nesta página da busca.'+(data.warning ? ' '+data.warning : '');
     } catch(error) { status.textContent=error.message; }
     finally { submit.disabled=false; }
   };
