@@ -1748,7 +1748,7 @@ function vehicleIssues(data) {
 function renderCrm(content) {
   const stages=[['prospectar','Prospectar'],['negociacao','Negociação'],['avaliacao','Avaliação'],['consignado','Consignado'],['vendido','Vendido']];
   const create=element('form',undefined,'assessment-panel crm-create');
-  for (const [name,label] of [['model','Veículo'],['owner','Nome do contato'],['phone','WhatsApp'],['plate','Placa']]) {
+  for (const [name,label] of [['model','Veículo'],['owner','Nome do contato'],['phone','WhatsApp'],['plate','Placa (opcional)']]) {
     const field=element('label',label),input=element('input');
     Object.assign(input,{name,required:name==='model',maxLength:name==='model'?200:120,type:name==='phone'?'tel':'text'});
     field.append(input);create.append(field);
