@@ -78,6 +78,8 @@ module.exports = async (req,res) => {
       const data = {id,model:vehicle.model,plate:vehicle.plate,year:vehicle.year,reportedYear:vehicle.reportedYear,
         km:vehicle.km,owner:vehicle.owner,phone:vehicle.phone,city:vehicle.city,vehicleKind:vehicle.vehicleKind,
         answers:vehicle.answers,created:Date.now(),plateLookup:vehicle.plateLookup,
+        checklistVersion:vehicle.checklistVersion===2?2:1,
+        photoLabels:Array.isArray(vehicle.photoLabels)?vehicle.photoLabels.slice(0,50).map(value=>String(value).slice(0,100)):[],
         photo:paths.photo || paths['photos-0'],photos:files.filter(f=>f.slot.startsWith('photos-')).map(f=>paths[f.slot]),video:paths.video};
       const existing = await request(url+'&select=id,pronta,dados');
       if (existing.length) return res.status(409).json({error:'Esta ficha já foi enviada. Abra o painel para conferir.'});
