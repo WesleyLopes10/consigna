@@ -19,9 +19,17 @@ async function profile(req) {
 }
 function validId(id) { return typeof id === 'string' && /^[a-f0-9-]{36}$/i.test(id); }
 function vehicleInput(v,forced=false) {
-  if (!v || !validId(v.id) || typeof v.model !== 'string' || (!forced && !v.model.trim()) || v.model.length>200 ||
-      (!forced && !/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(v.plate)) ||
+  if (!v || !validId(v.id) || typeof v.model !== 'string' || !v.model.trim() || v.model.length>200 ||
+      !/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(v.plate) ||
       !Array.isArray(v.answers) || v.answers.length>50 || !v.answers.every(n=>Number.isInteger(n)&&n>=0&&n<=3)) throw Error('Ficha inválida.');
+  if (forced && (
+    ['owner','phone','city'].some(key=>typeof v[key]!=='string' || !v[key].trim()) ||
+    !/^\([0-9]{2}\) [0-9]{4,5}-[0-9]{4}$/.test(v.phone) ||
+    !Number.isInteger(Number(v.year)) || Number(v.year)<1886 || Number(v.year)>2100 ||
+    String(v.km ?? '').trim()==='' || !Number.isFinite(Number(v.km)) || Number(v.km)<0 ||
+    !['Manual','Automático','Elétrico','Híbrido'].includes(v.vehicleKind) ||
+    v.answers.length!==19 || v.answers.some(n=>n===3)
+  )) throw Error('Preencha todos os dados e respostas do checklist. A senha dispensa somente fotos e vídeo.');
   return v;
 }
 async function signedVehicle(row,kind) {
