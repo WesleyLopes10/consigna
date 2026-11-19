@@ -647,6 +647,39 @@ function customerForm() {
   const steps = [...form.querySelectorAll('fieldset')];
   let step = 0;
   const back = $('#pre-back'), next = $('#pre-next');
+  const forceSend = document.createElement('button');
+  forceSend.type = 'submit';
+  forceSend.formNoValidate = true;
+  forceSend.textContent = 'Forçar envio sem dados';
+  forceSend.className = 'secondary';
+  const forceFooter = element('div',undefined,'actions');
+  forceFooter.append(forceSend);
+  form.append(forceFooter);
+  function requestForcePassword() {
+    return new Promise(resolve => {
+      const dialog = document.createElement('dialog');
+      const passwordForm = document.createElement('form');
+      const title = element('h2','Autorizar envio incompleto');
+      const info = element('p','As informações preenchidas serão enviadas. Os itens sem resposta ficarão pendentes.');
+      const label = element('label','Senha de autorização');
+      const input = document.createElement('input');
+      Object.assign(input,{type:'password',required:true,autocomplete:'off',inputMode:'numeric'});
+      label.append(input);
+      const cancel = button('Cancelar',()=>dialog.close());
+      const confirm = document.createElement('button');
+      Object.assign(confirm,{type:'submit',textContent:'Confirmar envio',className:'primary'});
+      const actions = element('div',undefined,'actions');
+      actions.append(cancel,confirm);
+      passwordForm.append(title,info,label,actions);
+      dialog.append(passwordForm);
+      document.body.append(dialog);
+      let value = null;
+      passwordForm.onsubmit = event => {event.preventDefault();value=input.value;dialog.close();};
+      dialog.addEventListener('close',()=>{dialog.remove();resolve(value);},{once:true});
+      dialog.showModal();
+      input.focus();
+    });
+  }
   const stepButtons = [...form.querySelectorAll('.pre-steps li')].map((item,index) => {
     const control = button(item.textContent,() => {
       if (index >= step || next.disabled) return;
@@ -769,9 +802,12 @@ function customerForm() {
   back.onclick = () => { notice(''); step--; display(); };
   form.onsubmit = async event => {
     event.preventDefault();
-    if (step < steps.length-1) { step++; display(); return; }
+    const forced = event.submitter === forceSend;
+    if (!forced && step < steps.length-1) { step++; display(); return; }
+    const forcePassword = forced ? await requestForcePassword() : undefined;
+    if (forced && !forcePassword) return;
     const missing = [...form.querySelectorAll('.pre-slider input[type=hidden]')].find(input => input.value === '');
-    if (missing) {
+    if (missing && !forced) {
       notice('Escolha uma condição para cada item do checklist.');
       missing.previousElementSibling.focus();
       return;
@@ -781,11 +817,11 @@ function customerForm() {
     display();
     const photos = checks.flatMap(([title],index) => !needsPhoto(index) ? [] : [data.get('itemPhoto'+index)]);
     const video = data.get('video');
-    if (photos.some(photo => photo.size > 5*1024**2) || video.size > 300*1024**2) {
+    if (photos.some(photo => photo?.size > 5*1024**2) || video?.size > 300*1024**2) {
       notice('Use uma foto de até 5 MB por pergunta que pede foto e um vídeo de até 300 MB.');
       return;
     }
-    next.disabled = back.disabled = true;
+    next.disabled = back.disabled = forceSend.disabled = true;
     notice('');
     const screen = element('section',undefined,'empty');
     screen.setAttribute('role','status');
@@ -795,15 +831,15 @@ function customerForm() {
     $('#content').append(screen);
     window.scrollTo(0,0);
     try {
-      const report = Object.fromEntries(fields.map(key => [key,data.get(key).trim()]));
-      report.model = data.get('brand').trim()+' '+report.model;
+      const report = Object.fromEntries(fields.map(key => [key,String(data.get(key)||'').trim()]));
+      report.model = (String(data.get('brand')||'').trim()+' '+report.model).trim() || 'Veículo não informado';
       report.plate = report.plate.toUpperCase();
       report.vehicleKind = data.get('vehicleKind');
       if (plateLookup?.plate === report.plate) report.plateLookup = plateLookup;
       Object.assign(report,{id:crypto.randomUUID(),created:Date.now(),photo:photos[0],photos,video,checklistVersion:2,photoLabels:checks.flatMap(([title],index)=>needsPhoto(index)?[index===2?'Frente':index===3?'Traseira':title]:[]),
-        answers:checks.map((_,index) => Number(data.get('check'+index)))});
+        answers:checks.map((_,index) => data.get('check'+index) === '' || data.get('check'+index) == null ? 3 : Number(data.get('check'+index)))});
       const pdf = await repairPdf(report);
-      await save(report);
+      await save(report,undefined,forcePassword);
       screen.removeAttribute('aria-busy');
       const artwork = element('img',undefined,'customer-result-art');
       Object.assign(artwork,{src:customerArtwork,alt:'Ediney da TopCar fazendo sinal de positivo'});
@@ -820,7 +856,7 @@ function customerForm() {
       form.hidden = false;
       notice(error.message || 'Não foi possível enviar a ficha ao servidor. Tente novamente.');
     } finally {
-      next.disabled = back.disabled = false;
+      next.disabled = back.disabled = forceSend.disabled = false;
     }
   };
   fetch('./assets/checklist-vistas.json').then(response => {
@@ -1089,19 +1125,19 @@ async function serverRequest(body) {
 async function readVehicles() {
   return (await serverRequest()).vehicles;
 }
-async function save(vehicle,finalValue) {
+async function save(vehicle,finalValue,forcePassword) {
   if (finalValue !== undefined) {
     await serverRequest({action:'evaluate',id:vehicle.id,value:finalValue});
-  } else if (vehicle.photo instanceof Blob || vehicle.video instanceof Blob) {
+  } else if (forcePassword || vehicle.photo instanceof Blob || vehicle.video instanceof Blob) {
     const {supabase} = await import('./avaliatop-auth.js');
-    const mediaFiles = (vehicle.photos||[]).map((file,index)=>({slot:'photos-'+index,file}));
-    if (!mediaFiles.length && vehicle.photo instanceof Blob) mediaFiles.push({slot:'photo',file:vehicle.photo});
-    if (vehicle.video instanceof Blob) mediaFiles.push({slot:'video',file:vehicle.video});
+    const mediaFiles = (vehicle.photos||[]).map((file,index)=>({slot:'photos-'+index,file})).filter(({file})=>file instanceof Blob && file.size>0);
+    if (!mediaFiles.length && vehicle.photo instanceof Blob && vehicle.photo.size>0) mediaFiles.push({slot:'photo',file:vehicle.photo});
+    if (vehicle.video instanceof Blob && vehicle.video.size>0) mediaFiles.push({slot:'video',file:vehicle.video});
     const metadata = {...vehicle};
     delete metadata.photo;
     delete metadata.photos;
     delete metadata.video;
-    const {uploads} = await serverRequest({action:'prepare',id:vehicle.id,vehicle:metadata,
+    const {uploads} = await serverRequest({action:'prepare',id:vehicle.id,vehicle:metadata,forcePassword,
       files:mediaFiles.map(({slot,file})=>({slot,size:file.size,type:file.type}))});
     for (const upload of uploads) {
       const {file}=mediaFiles.find(item=>item.slot===upload.slot);
