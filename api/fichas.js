@@ -28,7 +28,9 @@ function vehicleInput(v,forced=false) {
     !Number.isInteger(Number(v.year)) || Number(v.year)<1886 || Number(v.year)>2100 ||
     String(v.km ?? '').trim()==='' || !Number.isFinite(Number(v.km)) || Number(v.km)<0 ||
     !['Manual','Automático','Elétrico','Híbrido'].includes(v.vehicleKind) ||
-    v.answers.length!==19 || v.answers.some(n=>n===3)
+    (v.inspectionMode === '3d'
+      ? v.answers.length!==4 || !Array.isArray(v.exterior3D) || v.exterior3D.length<10
+      : v.answers.length!==19 || v.answers.some(n=>n===3))
   )) throw Error('Preencha todos os dados e respostas do checklist. A senha dispensa somente fotos e vídeo.');
   return v;
 }
@@ -88,7 +90,10 @@ module.exports = async (req,res) => {
       const paths = Object.fromEntries(files.map(f=>[f.slot,id+'/'+f.slot]));
       const data = {id,model:vehicle.model,plate:vehicle.plate,year:vehicle.year,reportedYear:vehicle.reportedYear,
         requestedValue:vehicle.requestedValue == null ? null : Number(vehicle.requestedValue),km:vehicle.km,owner:vehicle.owner,phone:vehicle.phone,city:vehicle.city,vehicleKind:vehicle.vehicleKind,
-        answers:vehicle.answers,incompleteSubmission:forced,created:Date.now(),plateLookup:vehicle.plateLookup,
+        answers:vehicle.answers,inspectionMode:vehicle.inspectionMode==='3d'?'3d':undefined,
+        exterior3D:vehicle.inspectionMode==='3d' && Array.isArray(vehicle.exterior3D)?vehicle.exterior3D:undefined,
+        mechanicalAnswers:vehicle.inspectionMode==='3d' && vehicle.mechanicalAnswers?vehicle.mechanicalAnswers:undefined,
+        incompleteSubmission:forced,created:Date.now(),plateLookup:vehicle.plateLookup,
         checklistVersion:vehicle.checklistVersion===2?2:1,
         photoLabels:Array.isArray(vehicle.photoLabels)?files.filter(f=>f.slot.startsWith('photos-')).map(f=>String(vehicle.photoLabels[Number(f.slot.slice(7))] || 'Foto').slice(0,100)):[],
         photo:paths.photo || paths['photos-0'],photos:files.filter(f=>f.slot.startsWith('photos-')).map(f=>paths[f.slot]),video:paths.video};
