@@ -81,7 +81,7 @@ module.exports = async (req,res) => {
         km:vehicle.km,owner:vehicle.owner,phone:vehicle.phone,city:vehicle.city,vehicleKind:vehicle.vehicleKind,
         answers:vehicle.answers,incompleteSubmission:forced,created:Date.now(),plateLookup:vehicle.plateLookup,
         checklistVersion:vehicle.checklistVersion===2?2:1,
-        photoLabels:Array.isArray(vehicle.photoLabels)?vehicle.photoLabels.slice(0,50).map(value=>String(value).slice(0,100)):[],
+        photoLabels:Array.isArray(vehicle.photoLabels)?files.filter(f=>f.slot.startsWith('photos-')).map(f=>String(vehicle.photoLabels[Number(f.slot.slice(7))] || 'Foto').slice(0,100)):[],
         photo:paths.photo || paths['photos-0'],photos:files.filter(f=>f.slot.startsWith('photos-')).map(f=>paths[f.slot]),video:paths.video};
       const existing = await request(url+'&select=id,pronta,dados');
       if (existing.length) return res.status(409).json({error:'Esta ficha já foi enviada. Abra o painel para conferir.'});
