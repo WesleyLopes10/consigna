@@ -650,7 +650,8 @@ function customerForm() {
   const forceSend = document.createElement('button');
   forceSend.type = 'submit';
   forceSend.formNoValidate = true;
-  forceSend.textContent = 'Forçar envio sem dados';
+  forceSend.textContent = 'Forçar envio sem fotos e vídeo';
+  next.formNoValidate = true;
   forceSend.className = 'secondary';
   const forceFooter = element('div',undefined,'actions');
   forceFooter.append(forceSend);
@@ -659,8 +660,8 @@ function customerForm() {
     return new Promise(resolve => {
       const dialog = document.createElement('dialog');
       const passwordForm = document.createElement('form');
-      const title = element('h2','Autorizar envio incompleto');
-      const info = element('p','As informações preenchidas serão enviadas. Os itens sem resposta ficarão pendentes.');
+      const title = element('h2','Enviar sem fotos e vídeo');
+      const info = element('p','A senha permite dispensar somente fotos e vídeo. Todos os dados e respostas do checklist são obrigatórios.');
       const label = element('label','Senha de autorização');
       const input = document.createElement('input');
       Object.assign(input,{type:'password',required:true,autocomplete:'off',inputMode:'numeric'});
@@ -693,6 +694,7 @@ function customerForm() {
   function display() {
     steps.forEach((section,index) => section.hidden = section.disabled = index !== step);
     back.hidden = step === 0;
+    forceFooter.hidden = step !== steps.length-1;
     next.textContent = step === steps.length-1 ? 'Enviar pré-avaliação' : 'Continuar';
     $('#pre-progress').textContent = 'Etapa '+(step+1)+' de '+steps.length;
     form.querySelectorAll('.pre-steps li').forEach((item,index) => {
@@ -803,15 +805,35 @@ function customerForm() {
   form.onsubmit = async event => {
     event.preventDefault();
     const forced = event.submitter === forceSend;
-    if (!forced && step < steps.length-1) { step++; display(); return; }
-    const forcePassword = forced ? await requestForcePassword() : undefined;
-    if (forced && !forcePassword) return;
+    if (forced && step !== steps.length-1) return;
+    const finalStep = step === steps.length-1;
+    steps.forEach(section => section.disabled = false);
+    const invalid = [...form.querySelectorAll('input,select,textarea')].find(input =>
+      (finalStep || steps[step].contains(input)) &&
+      (input.type !== 'file' || (finalStep && !forced)) && !input.checkValidity());
+    if (invalid) {
+      step = steps.findIndex(section => section.contains(invalid));
+      display();
+      invalid.reportValidity();
+      return;
+    }
+    display();
+    if (!finalStep) {
+      if (step === 2 && [...form.querySelectorAll('.pre-slider input[type=hidden]')].some(input=>input.value==='')) {
+        notice('Escolha uma condição para cada item do checklist.');
+        return;
+      }
+      step++; display(); return;
+    }
     const missing = [...form.querySelectorAll('.pre-slider input[type=hidden]')].find(input => input.value === '');
-    if (missing && !forced) {
+    if (missing) {
       notice('Escolha uma condição para cada item do checklist.');
+      step = 2; display();
       missing.previousElementSibling.focus();
       return;
     }
+    const forcePassword = forced ? await requestForcePassword() : undefined;
+    if (forced && !forcePassword) return;
     steps.forEach(section => section.disabled = false);
     const data = new FormData(form);
     display();
