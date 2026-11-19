@@ -102,6 +102,20 @@ module.exports = async (req,res) => {
       }));
       return res.json({uploads});
     }
+    if (action==='delete') {
+      if (!['mestre','avaliador'].includes(kind)) return res.status(403).json({error:'Acesso restrito.'});
+      const removed = await request(url+'&pronta=eq.true&avaliado_em=is.null', {
+        method:'DELETE',headers:{Prefer:'return=representation'}
+      });
+      if (!removed.length) return res.status(409).json({error:'A ficha não está mais pendente ou já foi apagada. Atualize a página.'});
+      const data = removed[0].dados || {};
+      const paths = [...new Set([data.photo,...(data.photos||[]),data.video].filter(path=>typeof path==='string' && path.startsWith(id+'/')))];
+      if (paths.length) {
+        try { await request('/storage/v1/object/'+bucket,{method:'DELETE',body:JSON.stringify({prefixes:paths})}); }
+        catch { console.warn('Não foi possível limpar as mídias de uma ficha excluída.'); }
+      }
+      return res.json({ok:true});
+    }
     const rows=await request(url+'&select=*');
     const row=rows[0];
     if (!row) return res.status(404).json({error:'Ficha não encontrada.'});
