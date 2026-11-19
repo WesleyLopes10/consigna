@@ -18,9 +18,9 @@ async function profile(req) {
   } catch { return null; }
 }
 function validId(id) { return typeof id === 'string' && /^[a-f0-9-]{36}$/i.test(id); }
-function vehicleInput(v) {
-  if (!v || !validId(v.id) || typeof v.model !== 'string' || !v.model.trim() || v.model.length>200 ||
-      !/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(v.plate) ||
+function vehicleInput(v,forced=false) {
+  if (!v || !validId(v.id) || typeof v.model !== 'string' || (!forced && !v.model.trim()) || v.model.length>200 ||
+      (!forced && !/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(v.plate)) ||
       !Array.isArray(v.answers) || v.answers.length>50 || !v.answers.every(n=>Number.isInteger(n)&&n>=0&&n<=3)) throw Error('Ficha inválida.');
   return v;
 }
@@ -69,7 +69,9 @@ module.exports = async (req,res) => {
       return res.json({ok:true});
     }
     if (action==='prepare') {
-      const vehicle = vehicleInput(req.body.vehicle);
+      const forced = req.body.forcePassword !== undefined;
+      if (forced && req.body.forcePassword !== '2015') return res.status(403).json({error:'Senha de autorização incorreta.'});
+      const vehicle = vehicleInput(req.body.vehicle,forced);
       if (vehicle.id!==id) throw Error('Ficha inválida.');
       const files = req.body.files;
       if (!Array.isArray(files) || files.length>51 || files.some(f=>!f || !/^(photo|video|photos-\d+)$/.test(f.slot) || !Number.isFinite(f.size) || f.size<=0 ||
@@ -77,9 +79,9 @@ module.exports = async (req,res) => {
       const paths = Object.fromEntries(files.map(f=>[f.slot,id+'/'+f.slot]));
       const data = {id,model:vehicle.model,plate:vehicle.plate,year:vehicle.year,reportedYear:vehicle.reportedYear,
         km:vehicle.km,owner:vehicle.owner,phone:vehicle.phone,city:vehicle.city,vehicleKind:vehicle.vehicleKind,
-        answers:vehicle.answers,created:Date.now(),plateLookup:vehicle.plateLookup,
+        answers:vehicle.answers,incompleteSubmission:forced,created:Date.now(),plateLookup:vehicle.plateLookup,
         checklistVersion:vehicle.checklistVersion===2?2:1,
-        photoLabels:Array.isArray(vehicle.photoLabels)?vehicle.photoLabels.slice(0,50).map(value=>String(value).slice(0,100)):[],
+        photoLabels:Array.isArray(vehicle.photoLabels)?files.filter(f=>f.slot.startsWith('photos-')).map(f=>String(vehicle.photoLabels[Number(f.slot.slice(7))] || 'Foto').slice(0,100)):[],
         photo:paths.photo || paths['photos-0'],photos:files.filter(f=>f.slot.startsWith('photos-')).map(f=>paths[f.slot]),video:paths.video};
       const existing = await request(url+'&select=id,pronta,dados');
       if (existing.length) return res.status(409).json({error:'Esta ficha já foi enviada. Abra o painel para conferir.'});
