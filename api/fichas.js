@@ -37,7 +37,7 @@ async function signedVehicle(row,kind) {
   if (row.avaliado_em) Object.assign(v,{evaluated:row.avaliado_em,value:Number(row.valor),code:'COD'+String(row.numero).padStart(4,'0')});
   v.unavailable = row.indisponivel;
   if (kind==='visualizador') {
-    const allowed = ['id','model','brand','year','reportedYear','km','trim','vehicleKind','fipeFuel','city','photo','photos','video','evaluated','value','code','unavailable','plate','plateLookup'];
+    const allowed = ['id','model','brand','year','reportedYear','km','trim','vehicleKind','fipeFuel','city','photo','photos','video','evaluated','value','requestedValue','photoLabels','code','unavailable','plate','plateLookup'];
     v = Object.fromEntries(allowed.filter(k=>v[k]!==undefined).map(k=>[k,v[k]]));
   }
   async function sign(path) {
@@ -80,13 +80,14 @@ module.exports = async (req,res) => {
       const forced = req.body.forcePassword !== undefined;
       if (forced && req.body.forcePassword !== '2015') return res.status(403).json({error:'Senha de autorização incorreta.'});
       const vehicle = vehicleInput(req.body.vehicle,forced);
+      if (vehicle.requestedValue != null && (typeof vehicle.requestedValue!=='number' || !Number.isFinite(vehicle.requestedValue) || vehicle.requestedValue<=0)) return res.status(400).json({error:'Valor pretendido inválido.'});
       if (vehicle.id!==id) throw Error('Ficha inválida.');
       const files = req.body.files;
       if (!Array.isArray(files) || files.length>51 || files.some(f=>!f || !/^(photo|video|photos-\d+)$/.test(f.slot) || !Number.isFinite(f.size) || f.size<=0 ||
         f.size>(f.slot==='video'?300:5)*1024**2 || !(f.slot==='video'?/^video\//:/^image\//).test(f.type))) return res.status(400).json({error:'Arquivo inválido.'});
       const paths = Object.fromEntries(files.map(f=>[f.slot,id+'/'+f.slot]));
       const data = {id,model:vehicle.model,plate:vehicle.plate,year:vehicle.year,reportedYear:vehicle.reportedYear,
-        km:vehicle.km,owner:vehicle.owner,phone:vehicle.phone,city:vehicle.city,vehicleKind:vehicle.vehicleKind,
+        requestedValue:vehicle.requestedValue == null ? null : Number(vehicle.requestedValue),km:vehicle.km,owner:vehicle.owner,phone:vehicle.phone,city:vehicle.city,vehicleKind:vehicle.vehicleKind,
         answers:vehicle.answers,incompleteSubmission:forced,created:Date.now(),plateLookup:vehicle.plateLookup,
         checklistVersion:vehicle.checklistVersion===2?2:1,
         photoLabels:Array.isArray(vehicle.photoLabels)?files.filter(f=>f.slot.startsWith('photos-')).map(f=>String(vehicle.photoLabels[Number(f.slot.slice(7))] || 'Foto').slice(0,100)):[],
@@ -136,9 +137,10 @@ module.exports = async (req,res) => {
       if (!updated.length) return res.status(409).json({error:'Esta ficha já foi avaliada.'});
     } else if (action==='update') {
       const patch=req.body.patch || {};
-      if (Object.keys(patch).some(k=>!['vehicleKind','plateLookup','usedMarketLookup','purchaseSuggestion','crmStage'].includes(k))) return res.status(400).json({error:'Alteração inválida.'});
+      if (Object.keys(patch).some(k=>!['vehicleKind','plateLookup','usedMarketLookup','purchaseSuggestion','crmStage','requestedValue'].includes(k))) return res.status(400).json({error:'Alteração inválida.'});
       if (patch.vehicleKind && !['Manual','Automático','Híbrido','Elétrico'].includes(patch.vehicleKind)) return res.status(400).end();
       if (patch.crmStage && !['prospectar','negociacao','avaliacao','consignado','vendido'].includes(patch.crmStage)) return res.status(400).json({error:'Etapa inválida.'});
+      if ('requestedValue' in patch && (typeof patch.requestedValue!=='number' || !Number.isFinite(patch.requestedValue) || patch.requestedValue<=0)) return res.status(400).json({error:'Valor pretendido inválido.'});
       const revision=row.revisao;
       const updated=await request(url+'&revisao=eq.'+revision,{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify({dados:{...row.dados,...patch},revisao:revision+1})});
       if (!updated.length) return res.status(409).json({error:'Ficha alterada em outra sessão. Atualize a página.'});
