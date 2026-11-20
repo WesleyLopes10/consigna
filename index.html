@@ -459,8 +459,13 @@ form.crm-create{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) auto;
 @media(max-width:420px){#pre-checks .inspection-section-heading{padding:12px}#pre-checks .pre-question{padding:12px}#pre-checks .pre-section>.section-photo{padding:12px}#pre-checks .inspection-section-guide{margin-inline:12px}#pre-checks .pre-section>.inspection-art{height:145px}}
 
 body[data-profile=master] .master-vehicles.pending-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;align-items:stretch}
+.master-vehicles.feed-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;align-items:stretch}
+.master-vehicles.feed-grid>.card{min-width:0;overflow-wrap:anywhere}
+.master-vehicles.feed-grid>.card .media{width:100%;aspect-ratio:16/9;object-fit:cover}
 .pending-grid>.card{min-width:0;overflow-wrap:anywhere}
 .pending-grid>.card .media{width:100%;object-fit:cover}
+@media(max-width:1000px){.master-vehicles.feed-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}}
+@media(max-width:600px){.master-vehicles.feed-grid{grid-template-columns:minmax(0,1fr);gap:12px}}
 @media(max-width:1000px){body[data-profile=master] .master-vehicles.pending-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}}
 @media(max-width:600px){body[data-profile=master] .master-vehicles.pending-grid{grid-template-columns:minmax(0,1fr);gap:14px}}
 button.delete-pending{background:#fce8eb;color:#ad182b;border-color:#efbbc3}button.delete-pending:hover{background:#f8d4da;border-color:#ad182b}
@@ -2458,6 +2463,7 @@ function render() {
   }
   const grid = element('div',undefined,'grid master-vehicles');
   if (page === 'pending') grid.classList.add('pending-grid');
+  if (page === 'feed') grid.classList.add('feed-grid');
   if (page === 'feed') {
     const search = element('input');
     Object.assign(search,{id:'search',type:'search',placeholder:'Buscar por código, modelo, versão ou ano'});
