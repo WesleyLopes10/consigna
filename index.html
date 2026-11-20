@@ -1270,6 +1270,30 @@ function button(label, action, style) {
   node.onclick = action;
   return node;
 }
+function requestManagerPassword(actionLabel) {
+  return new Promise(resolve => {
+    const dialog = document.createElement('dialog');
+    const form = document.createElement('form');
+    const title = element('h2','Confirmar '+actionLabel);
+    const label = element('label','Senha de autorização');
+    const input = document.createElement('input');
+    Object.assign(input,{type:'password',required:true,autocomplete:'off',inputMode:'numeric'});
+    label.append(input);
+    const cancel = button('Cancelar',()=>dialog.close());
+    const submit = document.createElement('button');
+    Object.assign(submit,{type:'submit',textContent:'Confirmar',className:'primary'});
+    const actions = element('div',undefined,'actions');
+    actions.append(cancel,submit);
+    form.append(title,label,actions);
+    dialog.append(form);
+    document.body.append(dialog);
+    let value = null;
+    form.onsubmit = event => {event.preventDefault();value=input.value;dialog.close();};
+    dialog.addEventListener('close',()=>{dialog.remove();resolve(value);},{once:true});
+    dialog.showModal();
+    input.focus();
+  });
+}
 async function serverRequest(body) {
   const {supabase} = await import('./avaliatop-auth.js');
   const {data:{session}} = await supabase.auth.getSession();
@@ -1283,7 +1307,7 @@ async function serverRequest(body) {
 async function readVehicles() {
   return (await serverRequest()).vehicles;
 }
-async function save(vehicle,finalValue,forcePassword) {
+async function save(vehicle,finalValue,forcePassword,authorizationPassword) {
   if (finalValue !== undefined) {
     await serverRequest({action:'evaluate',id:vehicle.id,value:finalValue});
   } else if (forcePassword || vehicle.photo instanceof Blob || vehicle.video instanceof Blob) {
@@ -1304,7 +1328,7 @@ async function save(vehicle,finalValue,forcePassword) {
     }
     await serverRequest({action:'complete',id:vehicle.id});
   } else {
-    await serverRequest({action:'availability',id:vehicle.id,unavailable:vehicle.unavailable});
+    await serverRequest({action:'availability',id:vehicle.id,unavailable:vehicle.unavailable,password:authorizationPassword});
   }
   if (accessProfile) vehicles = await readVehicles();
 }
@@ -1904,9 +1928,11 @@ function feedVehicle(vehicleId) {
     const feedback = element('p');
     feedback.setAttribute('role','status');
     const retire = button('Marcar como indisponível',async () => {
+      const password = await requestManagerPassword('marcar como indisponível');
+      if (password === null) return;
       retire.disabled = true;
       try {
-        await save({...vehicles.find(item => item.id === vehicle.id) || vehicle,unavailable:true});
+        await save({...vehicles.find(item => item.id === vehicle.id) || vehicle,unavailable:true},undefined,undefined,password);
         show('feed');
       } catch {
         feedback.textContent = 'Não foi possível alterar a disponibilidade.';
@@ -2035,9 +2061,11 @@ function details(vehicle) {
     feedback.setAttribute('role','status');
     const action = button(unavailable ? 'Marcar como indisponível' : 'Recolocar no feed',async () => {
       if (!master()) return;
+      const password = unavailable ? await requestManagerPassword('marcar como indisponível') : undefined;
+      if (unavailable && password === null) return;
       action.disabled = true;
       try {
-        await save({...vehicles.find(item => item.id === vehicle.id) || vehicle,unavailable});
+        await save({...vehicles.find(item => item.id === vehicle.id) || vehicle,unavailable},undefined,undefined,password);
         $('dialog').close();
         render();
         notice(unavailable ? 'Veículo retirado do feed.' : 'Veículo de volta ao feed.');
@@ -2091,9 +2119,11 @@ function cards(container, list) {
     if (page === 'pending' && !vehicle.evaluated && ['mestre','avaliador'].includes(accessProfile)) {
       const remove = button('Apagar',async () => {
         if (!window.confirm('Apagar a ficha de '+vehicle.model+(vehicle.plate ? ' · '+vehicle.plate : '')+'? Esta ação não pode ser desfeita.')) return;
+        const password = await requestManagerPassword('apagar ficha');
+        if (password === null) return;
         remove.disabled = true;
         try {
-          await serverRequest({action:'delete',id:vehicle.id});
+          await serverRequest({action:'delete',id:vehicle.id,password});
           vehicles = vehicles.filter(item=>item.id!==vehicle.id);
           show('pending');
           notice('Ficha apagada.');

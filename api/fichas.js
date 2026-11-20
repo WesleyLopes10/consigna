@@ -110,6 +110,7 @@ module.exports = async (req,res) => {
     }
     if (action==='delete') {
       if (!['mestre','avaliador'].includes(kind)) return res.status(403).json({error:'Acesso restrito.'});
+      if (req.body.password !== '2015') return res.status(403).json({error:'Senha de autorização incorreta.'});
       const removed = await request(url+'&pronta=eq.true&avaliado_em=is.null', {
         method:'DELETE',headers:{Prefer:'return=representation'}
       });
@@ -151,6 +152,7 @@ module.exports = async (req,res) => {
       if (!updated.length) return res.status(409).json({error:'Ficha alterada em outra sessão. Atualize a página.'});
     } else if (action==='availability') {
       if (typeof req.body.unavailable!=='boolean') return res.status(400).end();
+      if (req.body.unavailable && req.body.password !== '2015') return res.status(403).json({error:'Senha de autorização incorreta.'});
       await request(url,{method:'PATCH',body:JSON.stringify({indisponivel:req.body.unavailable})});
     } else return res.status(400).end();
     return res.json({ok:true});
